@@ -2,31 +2,36 @@ package com.nevruz.videor
 
 import android.media.MediaCodec
 import android.media.MediaFormat
-import java.nio.ByteBuffer
 
 class AacEncoder(
-    private val sampleRate: Int = 48_000,
-    private val channelCount: Int = 2,
+    private val sampleRate: Int = SAMPLE_RATE,
+    private val channelCount: Int = CHANNEL_COUNT,
     private val bitrate: Int = 192_000
 ) {
 
     companion object {
-        private const val MIME =
-            MediaFormat.MIMETYPE_AUDIO_AAC
 
-        private const val TIMEOUT_US = 10_000L
+        const val SAMPLE_RATE = 48_000
+        const val CHANNEL_COUNT = 2
+
+        private const val TIMEOUT_US =
+            10_000L
     }
 
-    private val codec: MediaCodec =
-        MediaCodec.createEncoderByType(MIME)
+    private val codec =
+        MediaCodec.createEncoderByType(
+            MediaFormat.MIMETYPE_AUDIO_AAC
+        )
 
     private var started = false
+
+    private var outputFormat: MediaFormat? = null
 
     fun start() {
 
         val format =
             MediaFormat.createAudioFormat(
-                MIME,
+                MediaFormat.MIMETYPE_AUDIO_AAC,
                 sampleRate,
                 channelCount
             )
@@ -64,7 +69,7 @@ class AacEncoder(
         presentationTimeUs: Long
     ): List<AudioPacket> {
 
-        if (!started) {
+        if (!started || size <= 0) {
             return emptyList()
         }
 
@@ -78,14 +83,14 @@ class AacEncoder(
 
         if (inputIndex >= 0) {
 
-            val inputBuffer =
+            val input =
                 codec.getInputBuffer(
                     inputIndex
                 )
 
-            if (inputBuffer != null) {
+            if (input != null) {
 
-                inputBuffer.clear()
+                input.clear()
 
                 val byteCount =
                     size * 2
@@ -93,16 +98,14 @@ class AacEncoder(
                 for (i in 0 until size) {
 
                     val sample =
-                        pcm[i]
+                        pcm[i].toInt()
 
-                    inputBuffer.put(
-                        (sample.toInt() and 0xFF)
-                            .toByte()
+                    input.put(
+                        (sample and 0xFF).toByte()
                     )
 
-                    inputBuffer.put(
-                        ((sample.toInt() shr 8) and 0xFF)
-                            .toByte()
+                    input.put(
+                        ((sample shr 8) and 0xFF).toByte()
                     )
                 }
 
@@ -130,30 +133,37 @@ class AacEncoder(
         val packets =
             ArrayList<AudioPacket>()
 
-        val inputIndex =
-            codec.dequeueInputBuffer(
-                TIMEOUT_US
-            )
+        var eosQueued = false
 
-        if (inputIndex >= 0) {
+        while (!eosQueued) {
 
-            codec.queueInputBuffer(
-                inputIndex,
-                0,
-                0,
-                0,
-                MediaCodec.BUFFER_FLAG_END_OF_STREAM
-            )
+            val inputIndex =
+                codec.dequeueInputBuffer(
+                    TIMEOUT_US
+                )
+
+            if (inputIndex >= 0) {
+
+                codec.queueInputBuffer(
+                    inputIndex,
+                    0,
+                    0,
+                    0,
+                    MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                )
+
+                eosQueued = true
+            }
         }
 
-        var finished = false
+        var eosReceived = false
 
-        while (!finished) {
+        while (!eosReceived) {
 
             val info =
                 MediaCodec.BufferInfo()
 
-            val outputIndex =
+            val index =
                 codec.dequeueOutputBuffer(
                     info,
                     TIMEOUT_US
@@ -161,63 +171,45 @@ class AacEncoder(
 
             when {
 
-                outputIndex >= 0 -> {
+                index ==
+                        MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
 
-                    val output =
-                        codec.getOutputBuffer(
-                            outputIndex
-                        )
+                    outputFormat =
+                        codec.outputFormat
+                }
+
+                index >= 0 -> {
+
+                    val buffer =
+                        codec.getOutputBuffer(index)
 
                     if (
-                        output != null &&
-                        info.size > 0
+                        buffer != null &&
+                        info.size > 0 &&
+                        (
+                            info.flags and
+                                MediaCodec.BUFFER_FLAG_CODEC_CONFIG
+                        ) == 0
                     ) {
 
-                        val data =
-                            ByteArray(info.size)
-
-                        output.position(
-                            info.offset
-                        )
-
-                        output.limit(
-                            info.offset +
-                                    info.size
-                        )
-
-                        output.get(data)
-
                         packets.add(
-                            AudioPacket(
-                                data = data,
-                                info =
-                                    MediaCodec.BufferInfo().also {
-                                        it.set(
-                                            0,
-                                            data.size,
-                                            info.presentationTimeUs,
-                                            info.flags
-                                        )
-                                    }
+                            createPacket(
+                                buffer,
+                                info
                             )
                         )
                     }
 
-                    finished =
+                    eosReceived =
                         (
                             info.flags and
-                                    MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                                MediaCodec.BUFFER_FLAG_END_OF_STREAM
                         ) != 0
 
                     codec.releaseOutputBuffer(
-                        outputIndex,
+                        index,
                         false
                     )
-                }
-
-                outputIndex ==
-                        MediaCodec.INFO_TRY_AGAIN_LATER -> {
-                    // Continue waiting for EOS.
                 }
             }
         }
@@ -225,8 +217,8 @@ class AacEncoder(
         return packets
     }
 
-    fun getOutputFormat(): MediaFormat {
-        return codec.outputFormat
+    fun getOutputFormat(): MediaFormat? {
+        return outputFormat
     }
 
     private fun drain(
@@ -238,90 +230,105 @@ class AacEncoder(
             val info =
                 MediaCodec.BufferInfo()
 
-            val outputIndex =
+            val index =
                 codec.dequeueOutputBuffer(
                     info,
                     TIMEOUT_US
                 )
 
-            if (
-                outputIndex ==
-                MediaCodec.INFO_TRY_AGAIN_LATER
-            ) {
-                return
-            }
+            when {
 
-            if (
-                outputIndex ==
-                MediaCodec.INFO_OUTPUT_FORMAT_CHANGED
-            ) {
-                continue
-            }
+                index ==
+                        MediaCodec.INFO_TRY_AGAIN_LATER -> {
+                    return
+                }
 
-            if (outputIndex < 0) {
-                return
-            }
+                index ==
+                        MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
 
-            val output =
-                codec.getOutputBuffer(
-                    outputIndex
-                )
+                    outputFormat =
+                        codec.outputFormat
+                }
 
-            if (
-                output != null &&
-                info.size > 0
-            ) {
+                index >= 0 -> {
 
-                val data =
-                    ByteArray(info.size)
+                    val buffer =
+                        codec.getOutputBuffer(index)
 
-                output.position(
-                    info.offset
-                )
+                    if (
+                        buffer != null &&
+                        info.size > 0 &&
+                        (
+                            info.flags and
+                                MediaCodec.BUFFER_FLAG_CODEC_CONFIG
+                        ) == 0
+                    ) {
 
-                output.limit(
-                    info.offset +
-                            info.size
-                )
+                        packets.add(
+                            createPacket(
+                                buffer,
+                                info
+                            )
+                        )
+                    }
 
-                output.get(data)
-
-                val copyInfo =
-                    MediaCodec.BufferInfo()
-
-                copyInfo.set(
-                    0,
-                    data.size,
-                    info.presentationTimeUs,
-                    info.flags
-                )
-
-                packets.add(
-                    AudioPacket(
-                        data = data,
-                        info = copyInfo
+                    codec.releaseOutputBuffer(
+                        index,
+                        false
                     )
-                )
+                }
             }
-
-            codec.releaseOutputBuffer(
-                outputIndex,
-                false
-            )
         }
+    }
+
+    private fun createPacket(
+        buffer: java.nio.ByteBuffer,
+        info: MediaCodec.BufferInfo
+    ): AudioPacket {
+
+        val data =
+            ByteArray(info.size)
+
+        buffer.position(info.offset)
+
+        buffer.limit(
+            info.offset +
+                    info.size
+        )
+
+        buffer.get(data)
+
+        val copyInfo =
+            MediaCodec.BufferInfo()
+
+        copyInfo.set(
+            0,
+            data.size,
+            info.presentationTimeUs,
+            info.flags
+        )
+
+        return AudioPacket(
+            data = data,
+            info = copyInfo
+        )
     }
 
     fun release() {
 
         if (started) {
+
             runCatching {
                 codec.stop()
             }
         }
 
-        codec.release()
+        runCatching {
+            codec.release()
+        }
 
         started = false
+        outputFormat = null
     }
 }
 
