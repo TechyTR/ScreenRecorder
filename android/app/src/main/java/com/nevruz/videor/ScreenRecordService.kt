@@ -40,6 +40,13 @@ class ScreenRecordService : Service() {
         const val EXTRA_FPS =
             "fps"
 
+        const val ACTION_STATE_CHANGED =
+    "com.nevruz.videor.action.STATE_CHANGED"
+
+@Volatile
+var isCurrentlyRecording: Boolean = false
+    private set
+        
         private const val CHANNEL_ID =
             "screen_recording"
 
