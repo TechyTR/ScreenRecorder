@@ -1,10 +1,10 @@
 package com.nevruz.videor
 
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.os.Build
-import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 
 class QuickSettingsStateReceiver :
@@ -22,11 +22,14 @@ class QuickSettingsStateReceiver :
             return
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        if (
+            Build.VERSION.SDK_INT >=
+            Build.VERSION_CODES.N
+        ) {
 
             TileService.requestListeningState(
                 context,
-                android.content.ComponentName(
+                ComponentName(
                     context,
                     RecordingTileService::class.java
                 )
