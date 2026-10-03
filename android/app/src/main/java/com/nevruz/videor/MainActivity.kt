@@ -4,40 +4,59 @@ import android.app.Activity
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
-import android.provider.Settings
 import android.widget.Button
 import android.widget.TextView
 
 class MainActivity : Activity() {
 
     companion object {
-        const val REQUEST_MEDIA_PROJECTION = 1001
+
+        private const val REQUEST_MEDIA_PROJECTION =
+            1001
     }
 
-    private lateinit var projectionManager: MediaProjectionManager
-    private lateinit var statusText: TextView
-    private lateinit var recordButton: Button
+    private lateinit var projectionManager:
+            MediaProjectionManager
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    private lateinit var statusText:
+            TextView
+
+    private lateinit var recordButton:
+            Button
+
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
+
         super.onCreate(savedInstanceState)
 
-        setContentView(R.layout.activity_main)
+        setContentView(
+            R.layout.activity_main
+        )
 
-        statusText = findViewById(R.id.statusText)
-        recordButton = findViewById(R.id.recordButton)
+        statusText =
+            findViewById(R.id.statusText)
+
+        recordButton =
+            findViewById(R.id.recordButton)
 
         projectionManager =
-            getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+            getSystemService(
+                MEDIA_PROJECTION_SERVICE
+            ) as MediaProjectionManager
 
         recordButton.setOnClickListener {
-            startRecordingRequest()
-        }
 
-        updateUI()
+            requestRecordingPermission()
+        }
     }
 
-    private fun startRecordingRequest() {
-        val intent = projectionManager.createScreenCaptureIntent()
+    private fun requestRecordingPermission() {
+
+        val intent =
+            projectionManager
+                .createScreenCaptureIntent()
+
         startActivityForResult(
             intent,
             REQUEST_MEDIA_PROJECTION
@@ -49,62 +68,118 @@ class MainActivity : Activity() {
         resultCode: Int,
         data: Intent?
     ) {
-        super.onActivityResult(requestCode, resultCode, data)
 
-        if (requestCode != REQUEST_MEDIA_PROJECTION) {
+        super.onActivityResult(
+            requestCode,
+            resultCode,
+            data
+        )
+
+        if (
+            requestCode !=
+            REQUEST_MEDIA_PROJECTION
+        ) {
             return
         }
 
-        if (resultCode != RESULT_OK || data == null) {
-            statusText.text = "Kayıt izni verilmedi"
+        if (
+            resultCode != RESULT_OK ||
+            data == null
+        ) {
+
+            statusText.text =
+                "Kayıt izni verilmedi"
+
             return
         }
 
-        val serviceIntent = Intent(
-            this,
-            ScreenRecordService::class.java
-        ).apply {
-            action = ScreenRecordService.ACTION_START
-            putExtra(
-                ScreenRecordService.EXTRA_RESULT_CODE,
-                resultCode
-            )
-            putExtra(
-                ScreenRecordService.EXTRA_DATA,
-                data
-            )
-        }
+        val serviceIntent =
+            Intent(
+                this,
+                ScreenRecordService::class.java
+            ).apply {
 
-        startForegroundService(serviceIntent)
+                action =
+                    ScreenRecordService.ACTION_START
 
-        statusText.text = "Kayıt yapılıyor"
-        recordButton.text = "KAYDI DURDUR"
+                putExtra(
+                    ScreenRecordService.EXTRA_RESULT_CODE,
+                    resultCode
+                )
+
+                putExtra(
+                    ScreenRecordService.EXTRA_DATA,
+                    data
+                )
+
+                /*
+                 * S25+ QHD+
+                 *
+                 * Dikey:
+                 * 1440 x 3120
+                 */
+
+                putExtra(
+                    ScreenRecordService.EXTRA_WIDTH,
+                    1440
+                )
+
+                putExtra(
+                    ScreenRecordService.EXTRA_HEIGHT,
+                    3120
+                )
+
+                /*
+                 * Test:
+                 *
+                 * 120 FPS
+                 */
+
+                putExtra(
+                    ScreenRecordService.EXTRA_FPS,
+                    120
+                )
+            }
+
+        startForegroundService(
+            serviceIntent
+        )
+
+        statusText.text =
+            "QHD+ / 120 FPS kayıt yapılıyor"
+
+        recordButton.text =
+            "KAYDI DURDUR"
 
         recordButton.setOnClickListener {
+
             stopRecording()
         }
     }
 
     private fun stopRecording() {
-        val intent = Intent(
-            this,
-            ScreenRecordService::class.java
-        ).apply {
-            action = ScreenRecordService.ACTION_STOP
-        }
+
+        val intent =
+            Intent(
+                this,
+                ScreenRecordService::class.java
+            ).apply {
+
+                action =
+                    ScreenRecordService.ACTION_STOP
+            }
 
         startService(intent)
 
-        statusText.text = "Hazır"
-        recordButton.text = "KAYIT BAŞLAT"
+        statusText.text =
+            "Hazır"
+
+        recordButton.text =
+            "KAYIT BAŞLAT"
 
         recordButton.setOnClickListener {
-            startRecordingRequest()
-        }
-    }
 
-    private fun updateUI() {
-        statusText.text = "Hazır"
-        recordButton.text = "KAYIT BAŞLAT"
+            requestRecordingPermission()
+        }
     }
 }
