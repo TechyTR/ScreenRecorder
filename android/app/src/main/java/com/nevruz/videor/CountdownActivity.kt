@@ -1,6 +1,7 @@
 package com.nevruz.videor
 
 import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.view.Gravity
 import android.view.Window
@@ -95,11 +96,94 @@ class CountdownActivity : Activity() {
             countdownRunnable
         )
 
-        setResult(
-            RESULT_OK
-        )
+        startRecordingService()
 
         finish()
+    }
+
+    private fun startRecordingService() {
+
+        val resultCode =
+            intent.getIntExtra(
+                EXTRA_RESULT_CODE,
+                -1
+            )
+
+        val projectionData =
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+
+                intent.getParcelableExtra(
+                    EXTRA_DATA,
+                    Intent::class.java
+                )
+
+            } else {
+
+                @Suppress("DEPRECATION")
+                intent.getParcelableExtra(
+                    EXTRA_DATA
+                )
+            }
+
+        if (
+            resultCode == -1 ||
+            projectionData == null
+        ) {
+            return
+        }
+
+        val settings =
+            RecordingPreferences.load(this)
+
+        val serviceIntent =
+            Intent(
+                this,
+                ScreenRecordService::class.java
+            ).apply {
+
+                action =
+                    ScreenRecordService.ACTION_START
+
+                putExtra(
+                    ScreenRecordService.EXTRA_RESULT_CODE,
+                    resultCode
+                )
+
+                putExtra(
+                    ScreenRecordService.EXTRA_DATA,
+                    projectionData
+                )
+
+                putExtra(
+                    ScreenRecordService.EXTRA_WIDTH,
+                    settings.width
+                )
+
+                putExtra(
+                    ScreenRecordService.EXTRA_HEIGHT,
+                    settings.height
+                )
+
+                putExtra(
+                    ScreenRecordService.EXTRA_FPS,
+                    settings.fps
+                )
+            }
+
+        if (
+            android.os.Build.VERSION.SDK_INT >= 26
+        ) {
+
+            startForegroundService(
+                serviceIntent
+            )
+
+        } else {
+
+            startService(
+                serviceIntent
+            )
+        }
     }
 
     override fun onDestroy() {
@@ -109,5 +193,14 @@ class CountdownActivity : Activity() {
         )
 
         super.onDestroy()
+    }
+
+    companion object {
+
+        const val EXTRA_RESULT_CODE =
+            "extra_result_code"
+
+        const val EXTRA_DATA =
+            "extra_data"
     }
 }
