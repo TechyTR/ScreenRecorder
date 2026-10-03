@@ -1,84 +1,104 @@
 package com.nevruz.videor
 
-import android.app.Activity
-import android.os.Bundle
-import android.view.Gravity
+import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.RectF
+import android.view.MotionEvent
 import android.view.View
-import android.widget.Button
-import android.widget.FrameLayout
 
-class CropSelectionActivity : Activity() {
+class CropSelectionView(
+    context: Context
+) : View(context) {
 
-    override fun onCreate(
-        savedInstanceState: Bundle?
-    ) {
-        super.onCreate(savedInstanceState)
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-        window.setStatusBarColor(
-            android.graphics.Color.TRANSPARENT
-        )
+    private val selection = RectF()
 
-        window.setNavigationBarColor(
-            android.graphics.Color.TRANSPARENT
-        )
+    private var startX = 0f
+    private var startY = 0f
 
-        val root =
-            FrameLayout(this)
+    private var selecting = false
 
-        root.setBackgroundColor(
-            android.graphics.Color.TRANSPARENT
-        )
+    init {
+        setBackgroundColor(Color.TRANSPARENT)
 
-        val selectionView =
-            CropSelectionView(this)
+        paint.style = Paint.Style.STROKE
+        paint.strokeWidth = 5f
+        paint.color = Color.WHITE
+    }
 
-        root.addView(
-            selectionView,
-            FrameLayout.LayoutParams(
-                -1,
-                -1
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+
+        if (selection.width() > 0f &&
+            selection.height() > 0f
+        ) {
+            canvas.drawRect(
+                selection,
+                paint
             )
-        )
+        }
+    }
 
-        val button =
-            Button(this).apply {
+    override fun onTouchEvent(
+        event: MotionEvent
+    ): Boolean {
 
-                text = "KIRPILAN ALANI KAYDET"
+        when (event.actionMasked) {
 
-                setOnClickListener {
+            MotionEvent.ACTION_DOWN -> {
+                startX = event.x
+                startY = event.y
 
-                    RecordingPreferences.save(
-                        this@CropSelectionActivity,
-                        RecordingPreferences.load(
-                            this@CropSelectionActivity
-                        ).copy(
-                            screenMode =
-                                ScreenMode.CROPPED
-                        )
-                    )
+                selection.set(
+                    startX,
+                    startY,
+                    startX,
+                    startY
+                )
 
-                    finish()
+                selecting = true
+
+                invalidate()
+
+                return true
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+
+                if (!selecting) {
+                    return true
                 }
+
+                selection.set(
+                    minOf(startX, event.x),
+                    minOf(startY, event.y),
+                    maxOf(startX, event.x),
+                    maxOf(startY, event.y)
+                )
+
+                invalidate()
+
+                return true
             }
 
-        val params =
-            FrameLayout.LayoutParams(
-                -2,
-                -2
-            ).apply {
+            MotionEvent.ACTION_UP,
+            MotionEvent.ACTION_CANCEL -> {
 
-                gravity =
-                    Gravity.BOTTOM or
-                            Gravity.CENTER_HORIZONTAL
+                selecting = false
 
-                bottomMargin = 70
+                invalidate()
+
+                return true
             }
+        }
 
-        root.addView(
-            button,
-            params
-        )
+        return true
+    }
 
-        setContentView(root)
+    fun getSelection(): RectF {
+        return RectF(selection)
     }
 }
