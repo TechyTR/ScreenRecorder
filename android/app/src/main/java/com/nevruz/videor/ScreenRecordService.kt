@@ -41,12 +41,12 @@ class ScreenRecordService : Service() {
             "fps"
 
         const val ACTION_STATE_CHANGED =
-    "com.nevruz.videor.action.STATE_CHANGED"
+            "com.nevruz.videor.action.STATE_CHANGED"
 
-@Volatile
-var isCurrentlyRecording: Boolean = false
-    private set
-        
+        @Volatile
+        var isCurrentlyRecording: Boolean = false
+            private set
+
         private const val CHANNEL_ID =
             "screen_recording"
 
@@ -109,14 +109,15 @@ var isCurrentlyRecording: Boolean = false
                     )
 
                 val data =
-                    if (
-                        Build.VERSION.SDK_INT >= 33
-                    ) {
+                    if (Build.VERSION.SDK_INT >= 33) {
+
                         intent.getParcelableExtra(
                             EXTRA_DATA,
                             Intent::class.java
                         )
+
                     } else {
+
                         @Suppress("DEPRECATION")
                         intent.getParcelableExtra(
                             EXTRA_DATA
@@ -176,9 +177,20 @@ var isCurrentlyRecording: Boolean = false
             return
         }
 
-        startForegroundCompat()
-
         try {
+
+            val settings =
+                RecordingPreferences.load(this)
+
+            audioMode =
+                settings.audioMode
+
+            val audioEnabled =
+                audioMode != AudioMode.OFF
+
+            startForegroundCompat(
+                audioEnabled
+            )
 
             val manager =
                 getSystemService(
@@ -193,15 +205,6 @@ var isCurrentlyRecording: Boolean = false
                     ?: error(
                         "MediaProjection oluşturulamadı."
                     )
-
-            val settings =
-                RecordingPreferences.load(this)
-
-            audioMode =
-                settings.audioMode
-
-            val audioEnabled =
-                audioMode != AudioMode.OFF
 
             output =
                 RecordingOutput.create(this)
@@ -239,6 +242,15 @@ var isCurrentlyRecording: Boolean = false
                     null
                 )
 
+            /*
+             * ÖNEMLİ:
+             * Thread'leri başlatmadan önce true yapılmalı.
+             */
+            recording = true
+            isCurrentlyRecording = true
+
+            broadcastStateChanged()
+
             if (audioEnabled) {
 
                 audioEncoder =
@@ -258,11 +270,14 @@ var isCurrentlyRecording: Boolean = false
                 startAudioThread()
             }
 
-            recording = true
-
             startVideoThread()
 
         } catch (error: Throwable) {
+
+            recording = false
+            isCurrentlyRecording = false
+
+            broadcastStateChanged()
 
             cleanup()
 
@@ -302,7 +317,7 @@ var isCurrentlyRecording: Boolean = false
                     when {
 
                         index ==
-                                MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
+                            MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
 
                             muxer?.addVideoTrack(
                                 codec.outputFormat
@@ -454,8 +469,8 @@ var isCurrentlyRecording: Boolean = false
 
                     val timeUs =
                         totalFrames *
-                                1_000_000L /
-                                AacEncoder.SAMPLE_RATE
+                            1_000_000L /
+                            AacEncoder.SAMPLE_RATE
 
                     val packets =
                         encoder.encode(
@@ -466,7 +481,7 @@ var isCurrentlyRecording: Boolean = false
 
                     totalFrames +=
                         count.toLong() /
-                                AacEncoder.CHANNEL_COUNT
+                            AacEncoder.CHANNEL_COUNT
 
                     val format =
                         encoder.getOutputFormat()
@@ -517,6 +532,9 @@ var isCurrentlyRecording: Boolean = false
         }
 
         recording = false
+        isCurrentlyRecording = false
+
+        broadcastStateChanged()
 
         runCatching {
             audioCapture?.stop()
@@ -527,7 +545,6 @@ var isCurrentlyRecording: Boolean = false
         }
 
         videoThread?.join(5000)
-
         audioThread?.join(5000)
 
         cleanup()
@@ -589,7 +606,9 @@ var isCurrentlyRecording: Boolean = false
         audioThread = null
     }
 
-    private fun startForegroundCompat() {
+    private fun startForegroundCompat(
+        microphoneEnabled: Boolean
+    ) {
 
         val notification =
             Notification.Builder(
@@ -613,10 +632,24 @@ var isCurrentlyRecording: Boolean = false
                 Build.VERSION_CODES.Q
         ) {
 
+            var serviceType =
+                ServiceInfo
+                    .FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+
+            if (
+                Build.VERSION.SDK_INT >=
+                    Build.VERSION_CODES.R &&
+                microphoneEnabled
+            ) {
+                serviceType =
+                    serviceType or
+                        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            }
+
             startForeground(
                 NOTIFICATION_ID,
                 notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
+                serviceType
             )
 
         } else {
@@ -651,9 +684,21 @@ var isCurrentlyRecording: Boolean = false
         )
     }
 
+    private fun broadcastStateChanged() {
+
+        sendBroadcast(
+            Intent(
+                ACTION_STATE_CHANGED
+            ).setPackage(packageName)
+        )
+    }
+
     override fun onDestroy() {
 
         recording = false
+        isCurrentlyRecording = false
+
+        broadcastStateChanged()
 
         cleanup()
 
