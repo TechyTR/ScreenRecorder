@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
-import android.view.View
 import android.widget.Button
 import android.widget.TextView
 import com.google.android.material.card.MaterialCardView
@@ -12,7 +11,12 @@ import com.google.android.material.card.MaterialCardView
 class MainActivity : Activity() {
 
     companion object {
+
+        const val ACTION_START_FROM_PANEL =
+            "com.nevruz.videor.action.START_FROM_PANEL"
+
         private const val REQUEST_MEDIA_PROJECTION = 1001
+        private const val REQUEST_COUNTDOWN = 1002
     }
 
     private lateinit var projectionManager: MediaProjectionManager
@@ -32,26 +36,45 @@ class MainActivity : Activity() {
     private var selectedHeight = 1080
     private var selectedFps = 60
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    private var startFromPanel = false
+
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
         super.onCreate(savedInstanceState)
 
-        setContentView(R.layout.activity_main)
+        setContentView(
+            R.layout.activity_main
+        )
 
         projectionManager =
             getSystemService(
                 MEDIA_PROJECTION_SERVICE
             ) as MediaProjectionManager
 
-        statusText = findViewById(R.id.statusText)
-        recordButton = findViewById(R.id.recordButton)
+        statusText =
+            findViewById(R.id.statusText)
 
-        cardFhd60 = findViewById(R.id.cardFhd60)
-        cardQhd60 = findViewById(R.id.cardQhd60)
-        cardQhd120 = findViewById(R.id.cardQhd120)
+        recordButton =
+            findViewById(R.id.recordButton)
 
-        fhdSelectedText = findViewById(R.id.fhdSelectedText)
-        qhd60SelectedText = findViewById(R.id.qhd60SelectedText)
-        qhd120SelectedText = findViewById(R.id.qhd120SelectedText)
+        cardFhd60 =
+            findViewById(R.id.cardFhd60)
+
+        cardQhd60 =
+            findViewById(R.id.cardQhd60)
+
+        cardQhd120 =
+            findViewById(R.id.cardQhd120)
+
+        fhdSelectedText =
+            findViewById(R.id.fhdSelectedText)
+
+        qhd60SelectedText =
+            findViewById(R.id.qhd60SelectedText)
+
+        qhd120SelectedText =
+            findViewById(R.id.qhd120SelectedText)
 
         cardFhd60.setOnClickListener {
             selectFHD60()
@@ -69,13 +92,48 @@ class MainActivity : Activity() {
             requestRecordingPermission()
         }
 
-        updateSelectionUI()
+        if (
+            intent?.action ==
+            ACTION_START_FROM_PANEL
+        ) {
+            startFromPanel = true
+
+            val settings =
+                RecordingPreferences.load(this)
+
+            selectedWidth =
+                settings.width
+
+            selectedHeight =
+                settings.height
+
+            selectedFps =
+                settings.fps
+
+            updateSelectionUI()
+
+            startCountdown()
+        } else {
+            updateSelectionUI()
+        }
+    }
+
+    private fun startCountdown() {
+
+        startActivityForResult(
+            Intent(
+                this,
+                CountdownActivity::class.java
+            ),
+            REQUEST_COUNTDOWN
+        )
     }
 
     private fun requestRecordingPermission() {
 
         val intent =
-            projectionManager.createScreenCaptureIntent()
+            projectionManager
+                .createScreenCaptureIntent()
 
         startActivityForResult(
             intent,
@@ -88,14 +146,28 @@ class MainActivity : Activity() {
         resultCode: Int,
         data: Intent?
     ) {
-
         super.onActivityResult(
             requestCode,
             resultCode,
             data
         )
 
-        if (requestCode != REQUEST_MEDIA_PROJECTION) {
+        if (
+            requestCode ==
+            REQUEST_COUNTDOWN
+        ) {
+
+            if (resultCode == RESULT_OK) {
+                requestRecordingPermission()
+            }
+
+            return
+        }
+
+        if (
+            requestCode !=
+            REQUEST_MEDIA_PROJECTION
+        ) {
             return
         }
 
@@ -110,47 +182,20 @@ class MainActivity : Activity() {
             return
         }
 
-        val serviceIntent =
-            Intent(
-                this,
-                ScreenRecordService::class.java
-            ).apply {
+        val settings =
+            RecordingPreferences.load(this)
 
-                action =
-                    ScreenRecordService.ACTION_START
-
-                putExtra(
-                    ScreenRecordService.EXTRA_RESULT_CODE,
-                    resultCode
-                )
-
-                putExtra(
-                    ScreenRecordService.EXTRA_DATA,
-                    data
-                )
-
-                putExtra(
-                    ScreenRecordService.EXTRA_WIDTH,
-                    selectedWidth
-                )
-
-                putExtra(
-                    ScreenRecordService.EXTRA_HEIGHT,
-                    selectedHeight
-                )
-
-                putExtra(
-                    ScreenRecordService.EXTRA_FPS,
-                    selectedFps
-                )
-            }
-
-        startForegroundService(
-            serviceIntent
+        RecordingController.start(
+            context = this,
+            resultCode = resultCode,
+            data = data,
+            width = settings.width,
+            height = settings.height,
+            fps = settings.fps
         )
 
         statusText.text =
-            "${selectedWidth}×${selectedHeight} • ${selectedFps} FPS"
+            "${settings.width}×${settings.height} • ${settings.fps} FPS"
 
         recordButton.text =
             "KAYDI DURDUR"
@@ -160,23 +205,16 @@ class MainActivity : Activity() {
         recordButton.setOnClickListener {
             stopRecording()
         }
+
+        startFromPanel = false
     }
 
     private fun stopRecording() {
 
-        val intent =
-            Intent(
-                this,
-                ScreenRecordService::class.java
-            ).apply {
+        RecordingController.stop(this)
 
-                action =
-                    ScreenRecordService.ACTION_STOP
-            }
-
-        startService(intent)
-
-        statusText.text = "Hazır"
+        statusText.text =
+            "Hazır"
 
         recordButton.text =
             "KAYIT BAŞLAT"
@@ -194,6 +232,7 @@ class MainActivity : Activity() {
         selectedHeight = 1080
         selectedFps = 60
 
+        saveCurrentProfile()
         updateSelectionUI()
     }
 
@@ -203,6 +242,7 @@ class MainActivity : Activity() {
         selectedHeight = 1440
         selectedFps = 60
 
+        saveCurrentProfile()
         updateSelectionUI()
     }
 
@@ -212,7 +252,23 @@ class MainActivity : Activity() {
         selectedHeight = 1440
         selectedFps = 120
 
+        saveCurrentProfile()
         updateSelectionUI()
+    }
+
+    private fun saveCurrentProfile() {
+
+        val old =
+            RecordingPreferences.load(this)
+
+        RecordingPreferences.save(
+            this,
+            old.copy(
+                width = selectedWidth,
+                height = selectedHeight,
+                fps = selectedFps
+            )
+        )
     }
 
     private fun updateSelectionUI() {
@@ -223,9 +279,9 @@ class MainActivity : Activity() {
                 selectedHeight == 1080 &&
                 selectedFps == 60
             ) {
-                View.VISIBLE
+                android.view.View.VISIBLE
             } else {
-                View.GONE
+                android.view.View.GONE
             }
 
         qhd60SelectedText.visibility =
@@ -234,9 +290,9 @@ class MainActivity : Activity() {
                 selectedHeight == 1440 &&
                 selectedFps == 60
             ) {
-                View.VISIBLE
+                android.view.View.VISIBLE
             } else {
-                View.GONE
+                android.view.View.GONE
             }
 
         qhd120SelectedText.visibility =
@@ -245,9 +301,9 @@ class MainActivity : Activity() {
                 selectedHeight == 1440 &&
                 selectedFps == 120
             ) {
-                View.VISIBLE
+                android.view.View.VISIBLE
             } else {
-                View.GONE
+                android.view.View.GONE
             }
     }
 
