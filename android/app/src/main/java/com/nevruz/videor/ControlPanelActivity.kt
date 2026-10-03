@@ -24,12 +24,14 @@ class ControlPanelActivity : Activity() {
 
     private lateinit var startButton: Button
 
-    private var isCurrentlyRecording: Boolean = false
-
-    override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
         super.onCreate(savedInstanceState)
 
-        setContentView(R.layout.activity_control_panel)
+        setContentView(
+            R.layout.activity_control_panel
+        )
 
         bindViews()
         loadSettings()
@@ -37,30 +39,52 @@ class ControlPanelActivity : Activity() {
     }
 
     private fun bindViews() {
-        audioGroup = findViewById(R.id.audioGroup)
-        screenGroup = findViewById(R.id.screenGroup)
 
-        audioOff = findViewById(R.id.audioOff)
-        audioMedia = findViewById(R.id.audioMedia)
+        audioGroup =
+            findViewById(R.id.audioGroup)
+
+        screenGroup =
+            findViewById(R.id.screenGroup)
+
+        audioOff =
+            findViewById(R.id.audioOff)
+
+        audioMedia =
+            findViewById(R.id.audioMedia)
+
         audioMicrophoneMedia =
-            findViewById(R.id.audioMicrophoneMedia)
+            findViewById(
+                R.id.audioMicrophoneMedia
+            )
+
         audioMicrophone =
-            findViewById(R.id.audioMicrophone)
+            findViewById(
+                R.id.audioMicrophone
+            )
 
         screenFull =
-            findViewById(R.id.screenFull)
+            findViewById(
+                R.id.screenFull
+            )
+
         screenCropped =
-            findViewById(R.id.screenCropped)
+            findViewById(
+                R.id.screenCropped
+            )
 
         startButton =
-            findViewById(R.id.startButton)
+            findViewById(
+                R.id.startButton
+            )
     }
 
     private fun loadSettings() {
-        val preferences =
-            RecordingPreferences(this)
 
-        when (preferences.getAudioMode()) {
+        val settings =
+            RecordingPreferences.load(this)
+
+        when (settings.audioMode) {
+
             AudioMode.OFF -> {
                 audioOff.isChecked = true
             }
@@ -69,16 +93,18 @@ class ControlPanelActivity : Activity() {
                 audioMedia.isChecked = true
             }
 
-            AudioMode.MICROPHONE_MEDIA -> {
-                audioMicrophoneMedia.isChecked = true
-            }
-
             AudioMode.MICROPHONE -> {
                 audioMicrophone.isChecked = true
             }
+
+            AudioMode.MICROPHONE_AND_MEDIA -> {
+                audioMicrophoneMedia.isChecked =
+                    true
+            }
         }
 
-        when (preferences.getScreenMode()) {
+        when (settings.screenMode) {
+
             ScreenMode.FULL_SCREEN -> {
                 screenFull.isChecked = true
             }
@@ -90,23 +116,32 @@ class ControlPanelActivity : Activity() {
     }
 
     private fun setupListeners() {
+
         startButton.setOnClickListener {
             startRecording()
         }
 
-        screenGroup.setOnCheckedChangeListener { _, checkedId ->
-            if (checkedId == R.id.screenCropped) {
+        screenGroup.setOnCheckedChangeListener {
+                _,
+                checkedId ->
+
+            if (
+                checkedId ==
+                R.id.screenCropped
+            ) {
                 openCropSelection()
             }
         }
     }
 
     private fun startRecording() {
-        val preferences =
-            RecordingPreferences(this)
+
+        val current =
+            RecordingPreferences.load(this)
 
         val audioMode =
             when {
+
                 audioOff.isChecked ->
                     AudioMode.OFF
 
@@ -114,7 +149,7 @@ class ControlPanelActivity : Activity() {
                     AudioMode.MEDIA
 
                 audioMicrophoneMedia.isChecked ->
-                    AudioMode.MICROPHONE_MEDIA
+                    AudioMode.MICROPHONE_AND_MEDIA
 
                 audioMicrophone.isChecked ->
                     AudioMode.MICROPHONE
@@ -125,6 +160,7 @@ class ControlPanelActivity : Activity() {
 
         val screenMode =
             when {
+
                 screenFull.isChecked ->
                     ScreenMode.FULL_SCREEN
 
@@ -135,24 +171,30 @@ class ControlPanelActivity : Activity() {
                     ScreenMode.FULL_SCREEN
             }
 
-        preferences.setAudioMode(audioMode)
-        preferences.setScreenMode(screenMode)
+        RecordingPreferences.save(
+            this,
+            current.copy(
+                audioMode = audioMode,
+                screenMode = screenMode
+            )
+        )
 
         val manager =
             getSystemService(
                 MEDIA_PROJECTION_SERVICE
             ) as MediaProjectionManager
 
-        val intent =
+        val projectionIntent =
             manager.createScreenCaptureIntent()
 
         startActivityForResult(
-            intent,
+            projectionIntent,
             REQUEST_MEDIA_PROJECTION
         )
     }
 
     private fun openCropSelection() {
+
         val intent =
             Intent(
                 this,
@@ -162,7 +204,9 @@ class ControlPanelActivity : Activity() {
         startActivity(intent)
     }
 
-    @Deprecated("Deprecated in Android API")
+    @Deprecated(
+        "Deprecated in Android API"
+    )
     override fun onActivityResult(
         requestCode: Int,
         resultCode: Int,
@@ -180,6 +224,7 @@ class ControlPanelActivity : Activity() {
             resultCode == RESULT_OK &&
             data != null
         ) {
+
             val intent =
                 Intent(
                     this,
@@ -197,8 +242,11 @@ class ControlPanelActivity : Activity() {
             )
 
             startActivity(intent)
+
             finish()
+
         } else {
+
             Toast.makeText(
                 this,
                 "Ekran kaydı izni verilmedi.",
@@ -208,6 +256,8 @@ class ControlPanelActivity : Activity() {
     }
 
     companion object {
-        const val REQUEST_MEDIA_PROJECTION = 1001
+
+        const val REQUEST_MEDIA_PROJECTION =
+            1001
     }
 }
