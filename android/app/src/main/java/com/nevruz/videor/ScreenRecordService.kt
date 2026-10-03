@@ -4,19 +4,16 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
-import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.hardware.display.DisplayManager
+import android.hardware.display.VirtualDisplay
 import android.media.MediaCodec
 import android.media.MediaMuxer
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
-import android.os.SystemClock
-import android.view.Surface
-import android.hardware.display.DisplayManager
-import android.hardware.display.VirtualDisplay
 
 class ScreenRecordService : Service() {
 
@@ -51,38 +48,40 @@ class ScreenRecordService : Service() {
     }
 
     private var projection:
-            MediaProjection? = null
+        MediaProjection? = null
 
     private var virtualDisplay:
-            VirtualDisplay? = null
+        VirtualDisplay? = null
 
     private var videoEncoder:
-            VideoEncoder? = null
-
-    private var muxer:
-            VideoMuxer? = null
-
-    private var output:
-            RecordingOutput.Output? = null
-
-    private var audioCapture:
-            AudioCaptureController? = null
+        VideoEncoder? = null
 
     private var audioEncoder:
-            AacEncoder? = null
+        AacEncoder? = null
+
+    private var audioCapture:
+        AudioCaptureController? = null
+
+    private var muxer:
+        VideoMuxer? = null
+
+    private var output:
+        RecordingOutput.Output? = null
+
+    private var videoThread:
+        Thread? = null
 
     private var audioThread:
-            Thread? = null
+        Thread? = null
 
-    private var recording =
-        false
+    @Volatile
+    private var recording = false
 
     private var audioMode =
         AudioMode.OFF
 
     override fun onCreate() {
         super.onCreate()
-
         createNotificationChannel()
     }
 
@@ -103,7 +102,9 @@ class ScreenRecordService : Service() {
                     )
 
                 val data =
-                    if (Build.VERSION.SDK_INT >= 33) {
+                    if (
+                        Build.VERSION.SDK_INT >= 33
+                    ) {
                         intent.getParcelableExtra(
                             EXTRA_DATA,
                             Intent::class.java
@@ -137,6 +138,7 @@ class ScreenRecordService : Service() {
                     resultCode != -1 &&
                     data != null
                 ) {
+
                     startRecording(
                         resultCode,
                         data,
@@ -181,12 +183,18 @@ class ScreenRecordService : Service() {
                     resultCode,
                     data
                 )
+                    ?: error(
+                        "MediaProjection oluşturulamadı."
+                    )
 
-            if (projection == null) {
-                throw IllegalStateException(
-                    "MediaProjection oluşturulamadı."
-                )
-            }
+            val settings =
+                RecordingPreferences.load(this)
+
+            audioMode =
+                settings.audioMode
+
+            val audioEnabled =
+                audioMode != AudioMode.OFF
 
             output =
                 RecordingOutput.create(this)
@@ -198,7 +206,10 @@ class ScreenRecordService : Service() {
                 )
 
             muxer =
-                VideoMuxer(mediaMuxer)
+                VideoMuxer(
+                    mediaMuxer,
+                    audioEnabled
+                )
 
             videoEncoder =
                 VideoEncoder(
@@ -209,9 +220,6 @@ class ScreenRecordService : Service() {
 
             videoEncoder!!.start()
 
-            val surface =
-                videoEncoder!!.inputSurface
-
             virtualDisplay =
                 projection!!.createVirtualDisplay(
                     "Stellar VideoR",
@@ -219,21 +227,17 @@ class ScreenRecordService : Service() {
                     height,
                     resources.displayMetrics.densityDpi,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    surface,
+                    videoEncoder!!.inputSurface,
                     null,
                     null
                 )
 
-            val settings =
-                RecordingPreferences.load(this)
+            if (audioEnabled) {
 
-            audioMode =
-                settings.audioMode
+                audioEncoder =
+                    AacEncoder()
 
-            if (
-                audioMode !=
-                AudioMode.OFF
-            ) {
+                audioEncoder!!.start()
 
                 audioCapture =
                     AudioCaptureController(
@@ -242,11 +246,6 @@ class ScreenRecordService : Service() {
                         audioMode
                     )
 
-                audioEncoder =
-                    AacEncoder()
-
-                audioEncoder!!.start()
-
                 audioCapture!!.start()
 
                 startAudioThread()
@@ -254,90 +253,93 @@ class ScreenRecordService : Service() {
 
             recording = true
 
-            startVideoDrainThread()
+            startVideoThread()
 
-        } catch (e: Exception) {
+        } catch (error: Throwable) {
 
             cleanup()
+
+            stopForeground(
+                STOP_FOREGROUND_REMOVE
+            )
 
             stopSelf()
         }
     }
 
-    private fun startVideoDrainThread() {
+    private fun startVideoThread() {
 
-        Thread {
+        videoThread =
+            Thread {
 
-            val codec =
-                videoEncoder?.codec()
-                    ?: return@Thread
+                val encoder =
+                    videoEncoder
+                        ?: return@Thread
 
-            var eos = false
+                val codec =
+                    encoder.codec()
 
-            while (!eos) {
+                var eos = false
 
-                val info =
-                    MediaCodec.BufferInfo()
+                while (!eos) {
 
-                val index =
-                    codec.dequeueOutputBuffer(
-                        info,
-                        10_000
-                    )
+                    val info =
+                        MediaCodec.BufferInfo()
 
-                when {
-
-                    index ==
-                            MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-
-                        muxer?.addVideoTrack(
-                            codec.outputFormat
+                    val index =
+                        codec.dequeueOutputBuffer(
+                            info,
+                            10_000
                         )
-                    }
 
-                    index >= 0 -> {
+                    when {
 
-                        val buffer =
-                            codec.getOutputBuffer(
-                                index
-                            )
+                        index ==
+                                MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
 
-                        if (
-                            buffer != null &&
-                            info.size > 0 &&
-                            muxer?.isStarted() == true
-                        ) {
-
-                            buffer.position(
-                                info.offset
-                            )
-
-                            buffer.limit(
-                                info.offset +
-                                        info.size
-                            )
-
-                            muxer?.writeVideo(
-                                buffer,
-                                info
+                            muxer?.addVideoTrack(
+                                codec.outputFormat
                             )
                         }
 
-                        eos =
-                            (
-                                info.flags and
-                                        MediaCodec.BUFFER_FLAG_END_OF_STREAM
-                            ) != 0
+                        index >= 0 -> {
 
-                        codec.releaseOutputBuffer(
-                            index,
-                            false
-                        )
+                            val buffer =
+                                codec.getOutputBuffer(
+                                    index
+                                )
+
+                            if (
+                                buffer != null &&
+                                info.size > 0 &&
+                                (
+                                    info.flags and
+                                        MediaCodec.BUFFER_FLAG_CODEC_CONFIG
+                                ) == 0
+                            ) {
+
+                                muxer?.writeVideo(
+                                    buffer,
+                                    info
+                                )
+                            }
+
+                            eos =
+                                (
+                                    info.flags and
+                                        MediaCodec.BUFFER_FLAG_END_OF_STREAM
+                                ) != 0
+
+                            codec.releaseOutputBuffer(
+                                index,
+                                false
+                            )
+                        }
                     }
                 }
             }
 
-        }.start()
+        videoThread!!.start()
     }
 
     private fun startAudioThread() {
@@ -353,33 +355,28 @@ class ScreenRecordService : Service() {
                     audioEncoder
                         ?: return@Thread
 
-                val settings =
-                    RecordingPreferences.load(this)
-
                 val bufferSize =
                     2048
 
                 val mediaBuffer =
                     ShortArray(bufferSize)
 
-                val micBuffer =
+                val microphoneBuffer =
                     ShortArray(bufferSize)
 
                 val mixedBuffer =
                     ShortArray(bufferSize)
 
-                var sampleCount = 0L
-
-                var formatAdded = false
+                var totalFrames = 0L
 
                 while (recording) {
 
                     val mediaRead =
                         if (
-                            settings.audioMode ==
-                            AudioMode.MEDIA ||
-                            settings.audioMode ==
-                            AudioMode.MICROPHONE_AND_MEDIA
+                            audioMode ==
+                                AudioMode.MEDIA ||
+                            audioMode ==
+                                AudioMode.MICROPHONE_AND_MEDIA
                         ) {
                             capture.readMedia(
                                 mediaBuffer
@@ -388,15 +385,15 @@ class ScreenRecordService : Service() {
                             0
                         }
 
-                    val micRead =
+                    val microphoneRead =
                         if (
-                            settings.audioMode ==
-                            AudioMode.MICROPHONE ||
-                            settings.audioMode ==
-                            AudioMode.MICROPHONE_AND_MEDIA
+                            audioMode ==
+                                AudioMode.MICROPHONE ||
+                            audioMode ==
+                                AudioMode.MICROPHONE_AND_MEDIA
                         ) {
                             capture.readMicrophone(
-                                micBuffer
+                                microphoneBuffer
                             )
                         } else {
                             0
@@ -405,21 +402,20 @@ class ScreenRecordService : Service() {
                     val count =
                         maxOf(
                             mediaRead,
-                            micRead
+                            microphoneRead
                         )
 
                     if (count <= 0) {
                         continue
                     }
 
-                    when (
-                        settings.audioMode
-                    ) {
+                    when (audioMode) {
 
                         AudioMode.MEDIA -> {
 
                             AudioMixer.copy(
                                 mediaBuffer,
+                                mediaRead,
                                 mixedBuffer
                             )
                         }
@@ -427,7 +423,8 @@ class ScreenRecordService : Service() {
                         AudioMode.MICROPHONE -> {
 
                             AudioMixer.copy(
-                                micBuffer,
+                                microphoneBuffer,
+                                microphoneRead,
                                 mixedBuffer
                             )
                         }
@@ -436,7 +433,9 @@ class ScreenRecordService : Service() {
 
                             AudioMixer.mix(
                                 mediaBuffer,
-                                micBuffer,
+                                mediaRead,
+                                microphoneBuffer,
+                                microphoneRead,
                                 mixedBuffer
                             )
                         }
@@ -447,7 +446,7 @@ class ScreenRecordService : Service() {
                     }
 
                     val timeUs =
-                        sampleCount *
+                        totalFrames *
                                 1_000_000L /
                                 AacEncoder.SAMPLE_RATE
 
@@ -458,22 +457,46 @@ class ScreenRecordService : Service() {
                             timeUs
                         )
 
-                    sampleCount +=
-                        count /
+                    totalFrames +=
+                        count.toLong() /
                                 AacEncoder.CHANNEL_COUNT
 
-                    if (!formatAdded) {
+                    val format =
+                        encoder.getOutputFormat()
+
+                    if (
+                        format != null &&
+                        muxer?.hasAudioTrack() != true
+                    ) {
 
                         muxer?.addAudioTrack(
-                            encoder.getOutputFormat()
+                            format
                         )
-
-                        formatAdded = true
                     }
 
-                    for (packet in packets) {
-                        muxer?.writeAudio(packet)
+                    packets.forEach {
+                        muxer?.writeAudio(it)
                     }
+                }
+
+                val finalPackets =
+                    encoder.finish()
+
+                val format =
+                    encoder.getOutputFormat()
+
+                if (
+                    format != null &&
+                    muxer?.hasAudioTrack() != true
+                ) {
+
+                    muxer?.addAudioTrack(
+                        format
+                    )
+                }
+
+                finalPackets.forEach {
+                    muxer?.writeAudio(it)
                 }
             }
 
@@ -489,14 +512,16 @@ class ScreenRecordService : Service() {
         recording = false
 
         runCatching {
-            videoEncoder?.stop()
+            audioCapture?.stop()
         }
-
-        audioThread?.join(1500)
 
         runCatching {
-            audioEncoder?.finish()
+            videoEncoder?.signalEndOfInputStream()
         }
+
+        videoThread?.join(5000)
+
+        audioThread?.join(5000)
 
         cleanup()
 
@@ -510,7 +535,15 @@ class ScreenRecordService : Service() {
     private fun cleanup() {
 
         runCatching {
-            audioCapture?.stop()
+            virtualDisplay?.release()
+        }
+
+        runCatching {
+            projection?.stop()
+        }
+
+        runCatching {
+            videoEncoder?.release()
         }
 
         runCatching {
@@ -518,11 +551,7 @@ class ScreenRecordService : Service() {
         }
 
         runCatching {
-            virtualDisplay?.release()
-        }
-
-        runCatching {
-            projection?.stop()
+            audioCapture?.stop()
         }
 
         runCatching {
@@ -542,14 +571,15 @@ class ScreenRecordService : Service() {
             }
         }
 
-        audioThread = null
-        audioCapture = null
-        audioEncoder = null
         virtualDisplay = null
         projection = null
         videoEncoder = null
+        audioEncoder = null
+        audioCapture = null
         muxer = null
         output = null
+        videoThread = null
+        audioThread = null
     }
 
     private fun startForegroundCompat() {
@@ -573,7 +603,7 @@ class ScreenRecordService : Service() {
 
         if (
             Build.VERSION.SDK_INT >=
-            Build.VERSION_CODES.Q
+                Build.VERSION_CODES.Q
         ) {
 
             startForeground(
@@ -595,7 +625,7 @@ class ScreenRecordService : Service() {
 
         if (
             Build.VERSION.SDK_INT <
-            Build.VERSION_CODES.O
+                Build.VERSION_CODES.O
         ) {
             return
         }
@@ -616,10 +646,9 @@ class ScreenRecordService : Service() {
 
     override fun onDestroy() {
 
-        if (recording) {
-            recording = false
-            cleanup()
-        }
+        recording = false
+
+        cleanup()
 
         super.onDestroy()
     }
