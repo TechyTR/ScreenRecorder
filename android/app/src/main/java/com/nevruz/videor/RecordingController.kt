@@ -13,6 +13,7 @@ object RecordingController {
         height: Int,
         fps: Int
     ) {
+
         val intent =
             Intent(
                 context,
@@ -51,9 +52,11 @@ object RecordingController {
         context.startForegroundService(intent)
     }
 
-    fun stop(context: Context) {
+    fun stop(
+        context: Context
+    ) {
 
-        val intent =
+        context.startService(
             Intent(
                 context,
                 ScreenRecordService::class.java
@@ -61,7 +64,6 @@ object RecordingController {
                 action =
                     ScreenRecordService.ACTION_STOP
             }
-
-        context.startService(intent)
+        )
     }
 }
