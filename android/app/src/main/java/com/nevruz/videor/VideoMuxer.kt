@@ -36,6 +36,11 @@ class VideoMuxer(
 
         tryStart()
     }
+    
+    @Synchronized
+    fun hasAudioTrack(): Boolean {
+    return audioTrack != -1
+}
 
     @Synchronized
     fun addAudioTrack(
