@@ -1,6 +1,7 @@
 package com.nevruz.videor
 
 import android.media.MediaCodec
+import android.media.MediaCodecInfo
 import android.media.MediaFormat
 import android.view.Surface
 
@@ -10,26 +11,31 @@ class VideoEncoder(
     private val fps: Int
 ) {
 
-    private val codec =
-        MediaCodec.createEncoderByType(
+    companion object {
+        private const val MIME =
             MediaFormat.MIMETYPE_VIDEO_AVC
-        )
+    }
+
+    private val codec =
+        MediaCodec.createEncoderByType(MIME)
 
     lateinit var inputSurface: Surface
         private set
+
+    private var started = false
 
     fun start() {
 
         val format =
             MediaFormat.createVideoFormat(
-                MediaFormat.MIMETYPE_VIDEO_AVC,
+                MIME,
                 width,
                 height
             )
 
         format.setInteger(
             MediaFormat.KEY_COLOR_FORMAT,
-            MediaCodecInfo.COLOR_FormatSurface
+            MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface
         )
 
         format.setInteger(
@@ -58,15 +64,29 @@ class VideoEncoder(
             codec.createInputSurface()
 
         codec.start()
+
+        started = true
     }
 
     fun codec(): MediaCodec {
         return codec
     }
 
-    fun stop() {
+    fun signalEndOfInputStream() {
+
+        if (!started) {
+            return
+        }
+
         runCatching {
             codec.signalEndOfInputStream()
+        }
+    }
+
+    fun release() {
+
+        if (!started) {
+            return
         }
 
         runCatching {
@@ -76,6 +96,8 @@ class VideoEncoder(
         runCatching {
             codec.release()
         }
+
+        started = false
     }
 
     private fun calculateBitrate(): Int {
@@ -84,23 +106,17 @@ class VideoEncoder(
             width.toLong() *
                     height.toLong()
 
-        val fpsMultiplier =
-            fps.toLong()
-
         val calculated =
             pixels *
-                    fpsMultiplier *
-                    2L
+                    fps.toLong() *
+                    0.45
 
         return calculated
+            .toLong()
             .coerceIn(
-                8_000_000L,
-                80_000_000L
+                12_000_000L,
+                120_000_000L
             )
             .toInt()
-    }
-
-    private object MediaCodecInfo {
-        const val Color_FormatSurface = 2130708361
     }
 }
