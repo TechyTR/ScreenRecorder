@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <color name="stellar_blue">#4F8CFF</color>
+    <color name="stellar_blue_dark">#246BDB</color>
+
+    <color name="stellar_background_light">#F7F9FC</color>
+    <color name="stellar_surface_light">#FFFFFF</color>
+
+    <color name="stellar_background_dark">#101114</color>
+    <color name="stellar_surface_dark">#1A1C20</color>
+
+    <color name="stellar_text_light">#17181B</color>
+    <color name="stellar_text_dark">#F2F3F5</color>
+
+</resources>
