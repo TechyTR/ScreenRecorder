@@ -9,13 +9,27 @@ class RecordingTileService : TileService() {
     override fun onClick() {
         super.onClick()
 
+        if (
+            ScreenRecordService
+                .isCurrentlyRecording
+        ) {
+
+            RecordingController.stop(this)
+
+            updateTile()
+
+            return
+        }
+
         val intent =
             Intent(
                 this,
                 ControlPanelActivity::class.java
             ).apply {
+
                 addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP
                 )
             }
 
@@ -28,12 +42,25 @@ class RecordingTileService : TileService() {
         updateTile()
     }
 
+    override fun onStopListening() {
+        super.onStopListening()
+    }
+
     private fun updateTile() {
 
         qsTile?.apply {
 
-            label =
-                "Ekran Kaydı"
+            label = "Ekran Kaydı"
+
+            contentDescription =
+                if (
+                    ScreenRecordService
+                        .isCurrentlyRecording
+                ) {
+                    "Ekran kaydı devam ediyor"
+                } else {
+                    "Ekran kaydı"
+                }
 
             state =
                 if (
