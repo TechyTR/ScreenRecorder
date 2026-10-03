@@ -4,15 +4,11 @@ object AudioMixer {
 
     fun mix(
         media: ShortArray?,
+        mediaLength: Int,
         microphone: ShortArray?,
+        microphoneLength: Int,
         output: ShortArray
     ) {
-
-        val mediaLength =
-            media?.size ?: 0
-
-        val microphoneLength =
-            microphone?.size ?: 0
 
         for (i in output.indices) {
 
@@ -36,12 +32,11 @@ object AudioMixer {
                     0
                 }
 
-            val mixed =
-                mediaSample +
-                        microphoneSample
-
             output[i] =
-                mixed
+                (
+                    mediaSample +
+                            microphoneSample
+                    )
                     .coerceIn(
                         Short.MIN_VALUE.toInt(),
                         Short.MAX_VALUE.toInt()
@@ -52,24 +47,29 @@ object AudioMixer {
 
     fun copy(
         source: ShortArray,
+        sourceLength: Int,
         output: ShortArray
     ) {
 
         val count =
             minOf(
-                source.size,
+                sourceLength,
                 output.size
             )
 
-        System.arraycopy(
-            source,
-            0,
-            output,
-            0,
-            count
-        )
+        if (count > 0) {
+
+            System.arraycopy(
+                source,
+                0,
+                output,
+                0,
+                count
+            )
+        }
 
         if (count < output.size) {
+
             java.util.Arrays.fill(
                 output,
                 count,
