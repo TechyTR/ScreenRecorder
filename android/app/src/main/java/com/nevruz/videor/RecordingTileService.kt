@@ -12,12 +12,10 @@ class RecordingTileService : TileService() {
         val intent =
             Intent(
                 this,
-                MainActivity::class.java
+                ControlPanelActivity::class.java
             ).apply {
-
                 addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
-                            Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    Intent.FLAG_ACTIVITY_NEW_TASK
                 )
             }
 
@@ -34,7 +32,8 @@ class RecordingTileService : TileService() {
 
         qsTile?.apply {
 
-            label = "Ekran Kaydı"
+            label =
+                "Ekran Kaydı"
 
             state =
                 if (
