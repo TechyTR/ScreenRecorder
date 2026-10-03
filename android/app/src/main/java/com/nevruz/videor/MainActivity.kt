@@ -10,35 +10,24 @@ import android.widget.TextView
 class MainActivity : Activity() {
 
     companion object {
-
-        private const val REQUEST_MEDIA_PROJECTION =
-            1001
+        private const val REQUEST_MEDIA_PROJECTION = 1001
     }
 
-    private lateinit var projectionManager:
-            MediaProjectionManager
+    private lateinit var projectionManager: MediaProjectionManager
+    private lateinit var statusText: TextView
+    private lateinit var recordButton: Button
 
-    private lateinit var statusText:
-            TextView
+    private var selectedWidth = 2340
+    private var selectedHeight = 1080
+    private var selectedFps = 60
 
-    private lateinit var recordButton:
-            Button
-
-    override fun onCreate(
-        savedInstanceState: Bundle?
-    ) {
-
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setContentView(
-            R.layout.activity_main
-        )
+        setContentView(R.layout.activity_main)
 
-        statusText =
-            findViewById(R.id.statusText)
-
-        recordButton =
-            findViewById(R.id.recordButton)
+        statusText = findViewById(R.id.statusText)
+        recordButton = findViewById(R.id.recordButton)
 
         projectionManager =
             getSystemService(
@@ -46,7 +35,6 @@ class MainActivity : Activity() {
             ) as MediaProjectionManager
 
         recordButton.setOnClickListener {
-
             requestRecordingPermission()
         }
     }
@@ -54,8 +42,7 @@ class MainActivity : Activity() {
     private fun requestRecordingPermission() {
 
         val intent =
-            projectionManager
-                .createScreenCaptureIntent()
+            projectionManager.createScreenCaptureIntent()
 
         startActivityForResult(
             intent,
@@ -76,8 +63,7 @@ class MainActivity : Activity() {
         )
 
         if (
-            requestCode !=
-            REQUEST_MEDIA_PROJECTION
+            requestCode != REQUEST_MEDIA_PROJECTION
         ) {
             return
         }
@@ -112,32 +98,19 @@ class MainActivity : Activity() {
                     data
                 )
 
-                /*
-                 * S25+ QHD+
-                 *
-                 * Dikey:
-                 * 1440 x 3120
-                 */
-
                 putExtra(
                     ScreenRecordService.EXTRA_WIDTH,
-                    1440
+                    selectedWidth
                 )
 
                 putExtra(
                     ScreenRecordService.EXTRA_HEIGHT,
-                    3120
+                    selectedHeight
                 )
-
-                /*
-                 * Test:
-                 *
-                 * 120 FPS
-                 */
 
                 putExtra(
                     ScreenRecordService.EXTRA_FPS,
-                    120
+                    selectedFps
                 )
             }
 
@@ -146,13 +119,12 @@ class MainActivity : Activity() {
         )
 
         statusText.text =
-            "QHD+ / 120 FPS kayıt yapılıyor"
+            "${selectedWidth}×${selectedHeight} • ${selectedFps} FPS"
 
         recordButton.text =
             "KAYDI DURDUR"
 
         recordButton.setOnClickListener {
-
             stopRecording()
         }
     }
@@ -178,8 +150,49 @@ class MainActivity : Activity() {
             "KAYIT BAŞLAT"
 
         recordButton.setOnClickListener {
-
             requestRecordingPermission()
         }
+    }
+
+    /*
+     * HD 30 FPS
+     */
+    private fun selectHD() {
+
+        selectedWidth = 1280
+        selectedHeight = 720
+        selectedFps = 30
+    }
+
+    /*
+     * FHD+ 60 FPS
+     */
+    private fun selectFHD60() {
+
+        selectedWidth = 2340
+        selectedHeight = 1080
+        selectedFps = 60
+    }
+
+    /*
+     * QHD+ 60 FPS
+     */
+    private fun selectQHD60() {
+
+        selectedWidth = 3120
+        selectedHeight = 1440
+        selectedFps = 60
+    }
+
+    /*
+     * QHD+ 120 FPS
+     *
+     * Deneysel.
+     */
+    private fun selectQHD120() {
+
+        selectedWidth = 3120
+        selectedHeight = 1440
+        selectedFps = 120
     }
 }
