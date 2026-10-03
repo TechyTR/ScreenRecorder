@@ -18,8 +18,17 @@
     <application
         android:allowBackup="true"
         android:label="Ekran Kaydedici"
+        android:icon="@drawable/ic_screen_record"
         android:supportsRtl="true"
         android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
+
+        <activity
+            android:name=".ControlPanelActivity"
+            android:exported="false" />
+
+        <activity
+            android:name=".CropSelectionActivity"
+            android:exported="false" />
 
         <activity
             android:name=".CountdownActivity"
@@ -38,6 +47,20 @@
             </intent-filter>
 
         </activity>
+
+        <service
+            android:name=".RecordingTileService"
+            android:label="Ekran Kaydı"
+            android:icon="@drawable/ic_screen_record"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+
+            <intent-filter>
+                <action
+                    android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+
+        </service>
 
         <service
             android:name=".ScreenRecordService"
