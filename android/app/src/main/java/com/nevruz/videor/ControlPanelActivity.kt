@@ -2,229 +2,121 @@ package com.nevruz.videor
 
 import android.app.Activity
 import android.content.Intent
+import android.media.projection.MediaProjectionManager
 import android.os.Bundle
-import android.view.Gravity
-import android.view.Window
-import android.view.WindowManager
-import android.widget.ArrayAdapter
 import android.widget.Button
+import android.widget.RadioButton
 import android.widget.RadioGroup
-import android.widget.Spinner
+import android.widget.Toast
 
 class ControlPanelActivity : Activity() {
 
     private lateinit var audioGroup: RadioGroup
     private lateinit var screenGroup: RadioGroup
-    private lateinit var resolutionSpinner: Spinner
 
-    private val resolutions =
-        listOf(
-            ResolutionOption(
-                "HD+",
-                1280,
-                720,
-                60
-            ),
-            ResolutionOption(
-                "HD+",
-                1280,
-                720,
-                120
-            ),
-            ResolutionOption(
-                "FHD+",
-                2340,
-                1080,
-                60
-            ),
-            ResolutionOption(
-                "FHD+",
-                2340,
-                1080,
-                120
-            ),
-            ResolutionOption(
-                "QHD+",
-                3120,
-                1440,
-                60
-            ),
-            ResolutionOption(
-                "QHD+",
-                3120,
-                1440,
-                120
-            )
-        )
+    private lateinit var audioOff: RadioButton
+    private lateinit var audioMedia: RadioButton
+    private lateinit var audioMicrophoneMedia: RadioButton
+    private lateinit var audioMicrophone: RadioButton
 
-    override fun onCreate(
-        savedInstanceState: Bundle?
-    ) {
+    private lateinit var screenFull: RadioButton
+    private lateinit var screenCropped: RadioButton
+
+    private lateinit var startButton: Button
+
+    private var isCurrentlyRecording: Boolean = false
+
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        if (
-            ScreenRecordService
-                .isCurrentlyRecording
-        ) {
-            finish()
-            return
-        }
+        setContentView(R.layout.activity_control_panel)
 
-        requestWindowFeature(
-            Window.FEATURE_NO_TITLE
-        )
-
-        setContentView(
-            R.layout.activity_control_panel
-        )
-
-        window.setGravity(
-            Gravity.CENTER
-        )
-
-        window.setBackgroundDrawableResource(
-            android.R.color.transparent
-        )
-
-        window.addFlags(
-            WindowManager.LayoutParams.FLAG_DIM_BEHIND
-        )
-
-        window.attributes =
-            window.attributes.apply {
-                dimAmount = 0.28f
-            }
-
-        audioGroup =
-            findViewById(
-                R.id.audioGroup
-            )
-
-        screenGroup =
-            findViewById(
-                R.id.screenGroup
-            )
-
-        resolutionSpinner =
-            findViewById(
-                R.id.resolutionSpinner
-            )
-
-        setupResolutionSpinner()
+        bindViews()
         loadSettings()
-
-        findViewById<Button>(
-            R.id.startButton
-        ).setOnClickListener {
-
-            saveSettings()
-
-            startActivity(
-                Intent(
-                    this,
-                    MainActivity::class.java
-                ).apply {
-                    action =
-                        MainActivity
-                            .ACTION_START_FROM_PANEL
-                }
-            )
-
-            finish()
-        }
+        setupListeners()
     }
 
-    private fun setupResolutionSpinner() {
+    private fun bindViews() {
+        audioGroup = findViewById(R.id.audioGroup)
+        screenGroup = findViewById(R.id.screenGroup)
 
-        val adapter =
-            ArrayAdapter(
-                this,
-                android.R.layout.simple_spinner_item,
-                resolutions
-            )
+        audioOff = findViewById(R.id.audioOff)
+        audioMedia = findViewById(R.id.audioMedia)
+        audioMicrophoneMedia =
+            findViewById(R.id.audioMicrophoneMedia)
+        audioMicrophone =
+            findViewById(R.id.audioMicrophone)
 
-        adapter.setDropDownViewResource(
-            android.R.layout
-                .simple_spinner_dropdown_item
-        )
+        screenFull =
+            findViewById(R.id.screenFull)
+        screenCropped =
+            findViewById(R.id.screenCropped)
 
-        resolutionSpinner.adapter =
-            adapter
+        startButton =
+            findViewById(R.id.startButton)
     }
 
     private fun loadSettings() {
+        val preferences =
+            RecordingPreferences(this)
 
-        val settings =
-            RecordingPreferences.load(this)
-
-        when (settings.audioMode) {
-
-            AudioMode.OFF ->
-                audioGroup.check(
-                    R.id.audioOff
-                )
-
-            AudioMode.MEDIA ->
-                audioGroup.check(
-                    R.id.audioMedia
-                )
-
-            AudioMode.MICROPHONE_AND_MEDIA ->
-                audioGroup.check(
-                    R.id.audioMicrophoneMedia
-                )
-
-            AudioMode.MICROPHONE ->
-                audioGroup.check(
-                    R.id.audioMicrophone
-                )
-        }
-
-        when (settings.screenMode) {
-
-            ScreenMode.FULL_SCREEN ->
-                screenGroup.check(
-                    R.id.screenFull
-                )
-
-            ScreenMode.CROPPED ->
-                screenGroup.check(
-                    R.id.screenCropped
-                )
-        }
-
-        val index =
-            resolutions.indexOfFirst {
-
-                it.width ==
-                        settings.width &&
-                        it.height ==
-                        settings.height &&
-                        it.fps ==
-                        settings.fps
+        when (preferences.getAudioMode()) {
+            AudioMode.OFF -> {
+                audioOff.isChecked = true
             }
 
-        if (index >= 0) {
-            resolutionSpinner
-                .setSelection(index)
+            AudioMode.MEDIA -> {
+                audioMedia.isChecked = true
+            }
+
+            AudioMode.MICROPHONE_MEDIA -> {
+                audioMicrophoneMedia.isChecked = true
+            }
+
+            AudioMode.MICROPHONE -> {
+                audioMicrophone.isChecked = true
+            }
+        }
+
+        when (preferences.getScreenMode()) {
+            ScreenMode.FULL_SCREEN -> {
+                screenFull.isChecked = true
+            }
+
+            ScreenMode.CROPPED -> {
+                screenCropped.isChecked = true
+            }
         }
     }
 
-    private fun saveSettings() {
+    private fun setupListeners() {
+        startButton.setOnClickListener {
+            startRecording()
+        }
+
+        screenGroup.setOnCheckedChangeListener { _, checkedId ->
+            if (checkedId == R.id.screenCropped) {
+                openCropSelection()
+            }
+        }
+    }
+
+    private fun startRecording() {
+        val preferences =
+            RecordingPreferences(this)
 
         val audioMode =
-            when (
-                audioGroup.checkedRadioButtonId
-            ) {
+            when {
+                audioOff.isChecked ->
+                    AudioMode.OFF
 
-                R.id.audioMedia ->
+                audioMedia.isChecked ->
                     AudioMode.MEDIA
 
-                R.id.audioMicrophoneMedia ->
-                    AudioMode
-                        .MICROPHONE_AND_MEDIA
+                audioMicrophoneMedia.isChecked ->
+                    AudioMode.MICROPHONE_MEDIA
 
-                R.id.audioMicrophone ->
+                audioMicrophone.isChecked ->
                     AudioMode.MICROPHONE
 
                 else ->
@@ -232,52 +124,90 @@ class ControlPanelActivity : Activity() {
             }
 
         val screenMode =
-            if (
-                screenGroup.checkedRadioButtonId ==
-                R.id.screenCropped
-            ) {
-                ScreenMode.CROPPED
-            } else {
-                ScreenMode.FULL_SCREEN
+            when {
+                screenFull.isChecked ->
+                    ScreenMode.FULL_SCREEN
+
+                screenCropped.isChecked ->
+                    ScreenMode.CROPPED
+
+                else ->
+                    ScreenMode.FULL_SCREEN
             }
 
-        val resolution =
-            resolutions[
-                resolutionSpinner
-                    .selectedItemPosition
-            ]
+        preferences.setAudioMode(audioMode)
+        preferences.setScreenMode(screenMode)
 
-        RecordingPreferences.save(
-            this,
-            RecordingSettings(
-                audioMode =
-                    audioMode,
+        val manager =
+            getSystemService(
+                MEDIA_PROJECTION_SERVICE
+            ) as MediaProjectionManager
 
-                screenMode =
-                    screenMode,
+        val intent =
+            manager.createScreenCaptureIntent()
 
-                width =
-                    resolution.width,
-
-                height =
-                    resolution.height,
-
-                fps =
-                    resolution.fps
-            )
+        startActivityForResult(
+            intent,
+            REQUEST_MEDIA_PROJECTION
         )
     }
 
-    override fun onResume() {
-        super.onResume()
+    private fun openCropSelection() {
+        val intent =
+            Intent(
+                this,
+                CropSelectionActivity::class.java
+            )
 
-        window.setLayout(
-            (
-                resources.displayMetrics
-                    .widthPixels * 0.88f
-            ).toInt(),
-            WindowManager.LayoutParams
-                .WRAP_CONTENT
+        startActivity(intent)
+    }
+
+    @Deprecated("Deprecated in Android API")
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: Intent?
+    ) {
+        super.onActivityResult(
+            requestCode,
+            resultCode,
+            data
         )
+
+        if (
+            requestCode ==
+            REQUEST_MEDIA_PROJECTION &&
+            resultCode == RESULT_OK &&
+            data != null
+        ) {
+            val intent =
+                Intent(
+                    this,
+                    CountdownActivity::class.java
+                )
+
+            intent.putExtra(
+                CountdownActivity.EXTRA_RESULT_CODE,
+                resultCode
+            )
+
+            intent.putExtra(
+                CountdownActivity.EXTRA_DATA,
+                data
+            )
+
+            startActivity(intent)
+            finish()
+        } else {
+            Toast.makeText(
+                this,
+                "Ekran kaydı izni verilmedi.",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    companion object {
+        const val REQUEST_MEDIA_PROJECTION = 1001
     }
 }
