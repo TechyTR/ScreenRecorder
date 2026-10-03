@@ -8,7 +8,6 @@ import android.view.Window
 import android.view.WindowManager
 import android.widget.ArrayAdapter
 import android.widget.Button
-import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.Spinner
 
@@ -18,23 +17,70 @@ class ControlPanelActivity : Activity() {
     private lateinit var screenGroup: RadioGroup
     private lateinit var resolutionSpinner: Spinner
 
-    private val resolutions = listOf(
-        ResolutionOption("HD+", 1280, 720, 60),
-        ResolutionOption("HD+", 1280, 720, 120),
-        ResolutionOption("FHD+", 2340, 1080, 60),
-        ResolutionOption("FHD+", 2340, 1080, 120),
-        ResolutionOption("QHD+", 3120, 1440, 60),
-        ResolutionOption("QHD+", 3120, 1440, 120)
-    )
+    private val resolutions =
+        listOf(
+            ResolutionOption(
+                "HD+",
+                1280,
+                720,
+                60
+            ),
+            ResolutionOption(
+                "HD+",
+                1280,
+                720,
+                120
+            ),
+            ResolutionOption(
+                "FHD+",
+                2340,
+                1080,
+                60
+            ),
+            ResolutionOption(
+                "FHD+",
+                2340,
+                1080,
+                120
+            ),
+            ResolutionOption(
+                "QHD+",
+                3120,
+                1440,
+                60
+            ),
+            ResolutionOption(
+                "QHD+",
+                3120,
+                1440,
+                120
+            )
+        )
 
-    override fun onCreate(savedInstanceState: Bundle?) {
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
         super.onCreate(savedInstanceState)
 
-        requestWindowFeature(Window.FEATURE_NO_TITLE)
+        if (
+            ScreenRecordService
+                .isCurrentlyRecording
+        ) {
+            finish()
+            return
+        }
 
-        setContentView(R.layout.activity_control_panel)
+        requestWindowFeature(
+            Window.FEATURE_NO_TITLE
+        )
 
-        window.setGravity(Gravity.CENTER)
+        setContentView(
+            R.layout.activity_control_panel
+        )
+
+        window.setGravity(
+            Gravity.CENTER
+        )
 
         window.setBackgroundDrawableResource(
             android.R.color.transparent
@@ -44,26 +90,33 @@ class ControlPanelActivity : Activity() {
             WindowManager.LayoutParams.FLAG_DIM_BEHIND
         )
 
-        window.attributes = window.attributes.apply {
-            dimAmount = 0.28f
-        }
+        window.attributes =
+            window.attributes.apply {
+                dimAmount = 0.28f
+            }
 
         audioGroup =
-            findViewById(R.id.audioGroup)
+            findViewById(
+                R.id.audioGroup
+            )
 
         screenGroup =
-            findViewById(R.id.screenGroup)
+            findViewById(
+                R.id.screenGroup
+            )
 
         resolutionSpinner =
-            findViewById(R.id.resolutionSpinner)
-
-        val startButton =
-            findViewById<Button>(R.id.startButton)
+            findViewById(
+                R.id.resolutionSpinner
+            )
 
         setupResolutionSpinner()
         loadSettings()
 
-        startButton.setOnClickListener {
+        findViewById<Button>(
+            R.id.startButton
+        ).setOnClickListener {
+
             saveSettings()
 
             startActivity(
@@ -72,25 +125,12 @@ class ControlPanelActivity : Activity() {
                     MainActivity::class.java
                 ).apply {
                     action =
-                        MainActivity.ACTION_START_FROM_PANEL
+                        MainActivity
+                            .ACTION_START_FROM_PANEL
                 }
             )
 
             finish()
-        }
-
-        findViewById<RadioButton>(
-            R.id.screenCropped
-        ).setOnClickListener {
-
-            saveSettings()
-
-            startActivity(
-                Intent(
-                    this,
-                    CropSelectionActivity::class.java
-                )
-            )
         }
     }
 
@@ -104,10 +144,12 @@ class ControlPanelActivity : Activity() {
             )
 
         adapter.setDropDownViewResource(
-            android.R.layout.simple_spinner_dropdown_item
+            android.R.layout
+                .simple_spinner_dropdown_item
         )
 
-        resolutionSpinner.adapter = adapter
+        resolutionSpinner.adapter =
+            adapter
     }
 
     private fun loadSettings() {
@@ -153,26 +195,34 @@ class ControlPanelActivity : Activity() {
 
         val index =
             resolutions.indexOfFirst {
-                it.width == settings.width &&
-                        it.height == settings.height &&
-                        it.fps == settings.fps
+
+                it.width ==
+                        settings.width &&
+                        it.height ==
+                        settings.height &&
+                        it.fps ==
+                        settings.fps
             }
 
         if (index >= 0) {
-            resolutionSpinner.setSelection(index)
+            resolutionSpinner
+                .setSelection(index)
         }
     }
 
     private fun saveSettings() {
 
         val audioMode =
-            when (audioGroup.checkedRadioButtonId) {
+            when (
+                audioGroup.checkedRadioButtonId
+            ) {
 
                 R.id.audioMedia ->
                     AudioMode.MEDIA
 
                 R.id.audioMicrophoneMedia ->
-                    AudioMode.MICROPHONE_AND_MEDIA
+                    AudioMode
+                        .MICROPHONE_AND_MEDIA
 
                 R.id.audioMicrophone ->
                     AudioMode.MICROPHONE
@@ -193,17 +243,27 @@ class ControlPanelActivity : Activity() {
 
         val resolution =
             resolutions[
-                resolutionSpinner.selectedItemPosition
+                resolutionSpinner
+                    .selectedItemPosition
             ]
 
         RecordingPreferences.save(
             this,
             RecordingSettings(
-                audioMode = audioMode,
-                screenMode = screenMode,
-                width = resolution.width,
-                height = resolution.height,
-                fps = resolution.fps
+                audioMode =
+                    audioMode,
+
+                screenMode =
+                    screenMode,
+
+                width =
+                    resolution.width,
+
+                height =
+                    resolution.height,
+
+                fps =
+                    resolution.fps
             )
         )
     }
@@ -212,9 +272,12 @@ class ControlPanelActivity : Activity() {
         super.onResume()
 
         window.setLayout(
-            (resources.displayMetrics.widthPixels * 0.88f)
-                .toInt(),
-            WindowManager.LayoutParams.WRAP_CONTENT
+            (
+                resources.displayMetrics
+                    .widthPixels * 0.88f
+            ).toInt(),
+            WindowManager.LayoutParams
+                .WRAP_CONTENT
         )
     }
 }
