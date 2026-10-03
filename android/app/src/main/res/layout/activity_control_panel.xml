@@ -1,0 +1,48 @@
+package com.nevruz.videor
+
+import android.app.Activity
+import android.os.Bundle
+import android.view.Gravity
+import android.view.Window
+import android.view.WindowManager
+
+class ControlPanelActivity : Activity() {
+
+    override fun onCreate(
+        savedInstanceState: Bundle?
+    ) {
+        super.onCreate(savedInstanceState)
+
+        requestWindowFeature(
+            Window.FEATURE_NO_TITLE
+        )
+
+        setContentView(
+            R.layout.activity_control_panel
+        )
+
+        window.setGravity(
+            Gravity.CENTER
+        )
+
+        window.setLayout(
+            (resources.displayMetrics.widthPixels * 0.88f)
+                .toInt(),
+            WindowManager.LayoutParams.WRAP_CONTENT
+        )
+
+        window.setBackgroundDrawableResource(
+            android.R.color.transparent
+        )
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        window.setLayout(
+            (resources.displayMetrics.widthPixels * 0.88f)
+                .toInt(),
+            WindowManager.LayoutParams.WRAP_CONTENT
+        )
+    }
+}
