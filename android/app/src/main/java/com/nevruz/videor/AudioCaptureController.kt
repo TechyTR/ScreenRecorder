@@ -15,6 +15,7 @@ class AudioCaptureController(
 ) {
 
     companion object {
+
         const val SAMPLE_RATE = 48_000
         const val CHANNEL_COUNT = 2
 
@@ -31,67 +32,69 @@ class AudioCaptureController(
     private var running = false
 
     fun start() {
+
         if (mode == AudioMode.OFF) {
             return
         }
 
-        running = true
-
-        if (
-            mode == AudioMode.MEDIA ||
-            mode == AudioMode.MICROPHONE_AND_MEDIA
-        ) {
-            mediaRecorder =
+        mediaRecorder =
+            if (
+                mode == AudioMode.MEDIA ||
+                mode == AudioMode.MICROPHONE_AND_MEDIA
+            ) {
                 createMediaRecorder()
-        }
+            } else {
+                null
+            }
 
-        if (
-            mode == AudioMode.MICROPHONE ||
-            mode == AudioMode.MICROPHONE_AND_MEDIA
-        ) {
-            microphoneRecorder =
+        microphoneRecorder =
+            if (
+                mode == AudioMode.MICROPHONE ||
+                mode == AudioMode.MICROPHONE_AND_MEDIA
+            ) {
                 createMicrophoneRecorder()
-        }
+            } else {
+                null
+            }
 
         mediaRecorder?.startRecording()
         microphoneRecorder?.startRecording()
+
+        running = true
     }
 
     fun readMedia(
         buffer: ShortArray
     ): Int {
-        val recorder =
-            mediaRecorder ?: return 0
 
         if (!running) {
             return 0
         }
 
-        return recorder.read(
+        return mediaRecorder?.read(
             buffer,
             0,
             buffer.size
-        )
+        ) ?: 0
     }
 
     fun readMicrophone(
         buffer: ShortArray
     ): Int {
-        val recorder =
-            microphoneRecorder ?: return 0
 
         if (!running) {
             return 0
         }
 
-        return recorder.read(
+        return microphoneRecorder?.read(
             buffer,
             0,
             buffer.size
-        )
+        ) ?: 0
     }
 
     fun stop() {
+
         running = false
 
         runCatching {
@@ -102,8 +105,13 @@ class AudioCaptureController(
             microphoneRecorder?.stop()
         }
 
-        mediaRecorder?.release()
-        microphoneRecorder?.release()
+        runCatching {
+            mediaRecorder?.release()
+        }
+
+        runCatching {
+            microphoneRecorder?.release()
+        }
 
         mediaRecorder = null
         microphoneRecorder = null
@@ -111,7 +119,7 @@ class AudioCaptureController(
 
     private fun createMediaRecorder(): AudioRecord {
 
-        val config =
+        val playbackConfig =
             AudioPlaybackCaptureConfiguration
                 .Builder(projection)
                 .addMatchingUsage(
@@ -129,7 +137,7 @@ class AudioCaptureController(
                 .setChannelMask(CHANNEL_MASK)
                 .build()
 
-        val minBuffer =
+        val minimum =
             AudioRecord.getMinBufferSize(
                 SAMPLE_RATE,
                 CHANNEL_MASK,
@@ -140,11 +148,13 @@ class AudioCaptureController(
             .setAudioFormat(format)
             .setBufferSizeInBytes(
                 maxOf(
-                    minBuffer * 2,
+                    minimum * 2,
                     SAMPLE_RATE
                 )
             )
-            .setAudioPlaybackCaptureConfig(config)
+            .setAudioPlaybackCaptureConfig(
+                playbackConfig
+            )
             .build()
     }
 
@@ -157,7 +167,7 @@ class AudioCaptureController(
                 .setChannelMask(CHANNEL_MASK)
                 .build()
 
-        val minBuffer =
+        val minimum =
             AudioRecord.getMinBufferSize(
                 SAMPLE_RATE,
                 CHANNEL_MASK,
@@ -171,7 +181,7 @@ class AudioCaptureController(
             .setAudioFormat(format)
             .setBufferSizeInBytes(
                 maxOf(
-                    minBuffer * 2,
+                    minimum * 2,
                     SAMPLE_RATE
                 )
             )
