@@ -1,38 +1,113 @@
 package com.nevruz.videor
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
-import android.service.quicksettings.Tile
-import android.service.quicksettings.TileService
+import android.os.Build
 
-class RecordingTileService : TileService() {
+object RecordingNotification {
 
-    override fun onClick() {
-        super.onClick()
+    const val CHANNEL_ID =
+        "stellar_videor_recording"
 
-        val intent =
+    const val NOTIFICATION_ID =
+        1001
+
+    fun createChannel(context: Context) {
+
+        if (Build.VERSION.SDK_INT <
+            Build.VERSION_CODES.O
+        ) {
+            return
+        }
+
+        val channel =
+            NotificationChannel(
+                CHANNEL_ID,
+                "Ekran Kaydı",
+                NotificationManager.IMPORTANCE_LOW
+            ).apply {
+
+                description =
+                    "Stellar VideoR ekran kayıt durumu"
+
+                setShowBadge(false)
+            }
+
+        val manager =
+            context.getSystemService(
+                NotificationManager::class.java
+            )
+
+        manager.createNotificationChannel(channel)
+    }
+
+    fun create(
+        context: Context,
+        elapsed: String,
+        width: Int,
+        height: Int,
+        fps: Int
+    ): Notification {
+
+        val openIntent =
             Intent(
-                this,
+                context,
                 MainActivity::class.java
             ).apply {
 
-                addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                flags =
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP or
                             Intent.FLAG_ACTIVITY_CLEAR_TOP
-                )
             }
 
-        startActivityAndCollapse(intent)
-    }
+        val pendingIntent =
+            PendingIntent.getActivity(
+                context,
+                2001,
+                openIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT or
+                        PendingIntent.FLAG_IMMUTABLE
+            )
 
-    override fun onStartListening() {
-        super.onStartListening()
+        val builder =
+            if (Build.VERSION.SDK_INT >=
+                Build.VERSION_CODES.O
+            ) {
 
-        qsTile?.apply {
+                Notification.Builder(
+                    context,
+                    CHANNEL_ID
+                )
 
-            label = "Ekran Kaydı"
-            state = Tile.STATE_INACTIVE
+            } else {
 
-            updateTile()
-        }
+                @Suppress("DEPRECATION")
+                Notification.Builder(context)
+            }
+
+        return builder
+            .setSmallIcon(
+                R.drawable.ic_videor
+            )
+            .setContentTitle(
+                "Ekran kaydediliyor"
+            )
+            .setContentText(
+                "$elapsed • ${width}×${height} • ${fps} FPS"
+            )
+            .setSubText(
+                "Stellar VideoR"
+            )
+            .setContentIntent(
+                pendingIntent
+            )
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setShowWhen(false)
+            .build()
     }
 }
