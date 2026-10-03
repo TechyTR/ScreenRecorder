@@ -4,6 +4,7 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
@@ -16,8 +17,11 @@ import android.media.MediaFormat
 import android.media.MediaMuxer
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.net.Uri
 import android.os.Build
+import android.os.Environment
 import android.os.IBinder
+import android.provider.MediaStore
 import android.util.Log
 import java.io.File
 
@@ -33,29 +37,29 @@ class ScreenRecordService : Service() {
         const val ACTION_STOP =
             "com.nevruz.videor.action.STOP"
 
-        const val EXTRA_RESULT_CODE =
-            "result_code"
+        const val EXTRA_RESULT_CODE = "result_code"
+        const val EXTRA_DATA = "data"
+        const val EXTRA_WIDTH = "width"
+        const val EXTRA_HEIGHT = "height"
+        const val EXTRA_FPS = "fps"
 
-        const val EXTRA_DATA =
-            "data"
+        const val ACTION_STATE_CHANGED =
+            "com.nevruz.videor.STATE_CHANGED"
 
-        const val EXTRA_WIDTH =
-            "width"
-
-        const val EXTRA_HEIGHT =
-            "height"
-
-        const val EXTRA_FPS =
-            "fps"
+        const val EXTRA_RECORDING =
+            "recording"
 
         private const val CHANNEL_ID =
             "stellar_videor_recording"
 
-        private const val NOTIFICATION_ID =
-            1001
+        private const val NOTIFICATION_ID = 1001
 
         private const val MIME_TYPE =
             "video/avc"
+
+        @Volatile
+        var isCurrentlyRecording = false
+            private set
     }
 
     private var mediaProjection: MediaProjection? = null
@@ -64,18 +68,17 @@ class ScreenRecordService : Service() {
     private var encoder: MediaCodec? = null
     private var muxer: MediaMuxer? = null
 
-    private var encoderInputSurface: android.view.Surface? = null
-
+    private var inputSurface: android.view.Surface? = null
     private var recordingThread: Thread? = null
 
-    @Volatile
-    private var isRecording = false
-
-    @Volatile
-    private var stopRequested = false
+    private var outputUri: Uri? = null
+    private var outputStreamFile: File? = null
 
     private var muxerStarted = false
     private var videoTrack = -1
+
+    @Volatile
+    private var stopRequested = false
 
     override fun onCreate() {
         super.onCreate()
@@ -93,7 +96,7 @@ class ScreenRecordService : Service() {
 
             ACTION_START -> {
 
-                if (!isRecording) {
+                if (!isCurrentlyRecording) {
 
                     val resultCode =
                         intent.getIntExtra(
@@ -133,20 +136,17 @@ class ScreenRecordService : Service() {
                         )
 
                     if (
-                        resultCode == -1 ||
-                        data == null
+                        resultCode != -1 &&
+                        data != null
                     ) {
-                        stopSelf()
-                        return START_NOT_STICKY
+                        startRecording(
+                            resultCode,
+                            data,
+                            width,
+                            height,
+                            fps
+                        )
                     }
-
-                    startRecording(
-                        resultCode,
-                        data,
-                        width,
-                        height,
-                        fps
-                    )
                 }
             }
 
@@ -170,13 +170,12 @@ class ScreenRecordService : Service() {
 
             startForeground(
                 NOTIFICATION_ID,
-                createNotification(),
+                createNotification(
+                    width,
+                    height,
+                    fps
+                ),
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION
-            )
-
-            Log.d(
-                TAG,
-                "Starting: ${width}x${height} @ ${fps} FPS"
             )
 
             val encoderInfo =
@@ -190,7 +189,7 @@ class ScreenRecordService : Service() {
 
                 Log.e(
                     TAG,
-                    "No compatible AVC encoder found"
+                    "No compatible AVC encoder"
                 )
 
                 stopSelf()
@@ -248,17 +247,20 @@ class ScreenRecordService : Service() {
                 MediaCodec.CONFIGURE_FLAG_ENCODE
             )
 
-            encoderInputSurface =
+            inputSurface =
                 codec.createInputSurface()
 
             codec.start()
 
-            val outputFile =
-                createOutputFile()
+            val output =
+                createMediaStoreOutput()
+
+            outputUri = output.first
+            outputStreamFile = output.second
 
             muxer =
                 MediaMuxer(
-                    outputFile.absolutePath,
+                    outputStreamFile!!.absolutePath,
                     MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4
                 )
 
@@ -274,15 +276,9 @@ class ScreenRecordService : Service() {
                 )
 
             if (mediaProjection == null) {
-
-                Log.e(
-                    TAG,
-                    "MediaProjection creation failed"
+                throw IllegalStateException(
+                    "MediaProjection unavailable"
                 )
-
-                cleanup()
-                stopSelf()
-                return
             }
 
             virtualDisplay =
@@ -292,41 +288,38 @@ class ScreenRecordService : Service() {
                     height,
                     resources.displayMetrics.densityDpi,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-                    encoderInputSurface,
+                    inputSurface,
                     null,
                     null
                 )
 
             stopRequested = false
-            isRecording = true
+            isCurrentlyRecording = true
+
+            sendState(true)
 
             recordingThread =
                 Thread {
-
                     drainEncoder()
-
                 }.apply {
-
-                    name =
-                        "StellarVideoR-Encoder"
-
+                    name = "StellarVideoR-Encoder"
                     start()
                 }
 
             Log.d(
                 TAG,
-                "Recording started: ${outputFile.absolutePath}"
+                "Recording started"
             )
 
         } catch (e: Exception) {
 
             Log.e(
                 TAG,
-                "Recording start failed",
+                "Recording failed to start",
                 e
             )
 
-            cleanup()
+            cleanup(false)
             stopSelf()
         }
     }
@@ -334,91 +327,76 @@ class ScreenRecordService : Service() {
     private fun drainEncoder() {
 
         val codec = encoder ?: return
+        val bufferInfo = MediaCodec.BufferInfo()
 
-        val bufferInfo =
-            MediaCodec.BufferInfo()
+        var eos = false
 
-        var endOfStream = false
+        while (!eos) {
 
-        while (!endOfStream) {
-
-            val outputIndex =
+            val index =
                 try {
-
                     codec.dequeueOutputBuffer(
                         bufferInfo,
                         10_000
                     )
-
                 } catch (e: Exception) {
-
                     Log.e(
                         TAG,
-                        "dequeueOutputBuffer failed",
+                        "Encoder drain error",
                         e
                     )
-
                     break
                 }
 
             when {
 
-                outputIndex ==
+                index ==
                         MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
 
-                    if (muxerStarted) {
-                        continue
+                    if (!muxerStarted) {
+
+                        val format =
+                            codec.outputFormat
+
+                        videoTrack =
+                            muxer!!.addTrack(
+                                format
+                            )
+
+                        muxer!!.start()
+                        muxerStarted = true
                     }
-
-                    val newFormat =
-                        codec.outputFormat
-
-                    videoTrack =
-                        muxer!!.addTrack(
-                            newFormat
-                        )
-
-                    muxer!!.start()
-
-                    muxerStarted = true
-
-                    Log.d(
-                        TAG,
-                        "Muxer started"
-                    )
                 }
 
-                outputIndex >= 0 -> {
+                index >= 0 -> {
 
-                    val outputBuffer =
-                        codec.getOutputBuffer(
-                            outputIndex
-                        )
+                    val buffer =
+                        codec.getOutputBuffer(index)
 
                     if (
-                        outputBuffer != null &&
+                        buffer != null &&
                         bufferInfo.size > 0 &&
                         muxerStarted
                     ) {
 
-                        outputBuffer.position(
+                        buffer.position(
                             bufferInfo.offset
                         )
 
-                        outputBuffer.limit(
+                        buffer.limit(
                             bufferInfo.offset +
                                     bufferInfo.size
                         )
 
                         muxer!!.writeSampleData(
                             videoTrack,
-                            outputBuffer,
+                            buffer,
                             bufferInfo
                         )
                     }
 
                     codec.releaseOutputBuffer(
-                        outputIndex,
+                        index,
                         false
                     )
 
@@ -427,37 +405,16 @@ class ScreenRecordService : Service() {
                                 MediaCodec.BUFFER_FLAG_END_OF_STREAM !=
                         0
                     ) {
-                        endOfStream = true
+                        eos = true
                     }
                 }
-            }
-
-            if (
-                stopRequested &&
-                !endOfStream
-            ) {
-
-                try {
-
-                    codec.signalEndOfInputStream()
-
-                } catch (e: Exception) {
-
-                    Log.w(
-                        TAG,
-                        "signalEndOfInputStream failed",
-                        e
-                    )
-                }
-
-                stopRequested = false
             }
         }
     }
 
     private fun stopRecording() {
 
-        if (!isRecording) {
+        if (!isCurrentlyRecording) {
             stopSelf()
             return
         }
@@ -470,36 +427,31 @@ class ScreenRecordService : Service() {
         stopRequested = true
 
         try {
-
             encoder?.signalEndOfInputStream()
-
         } catch (e: Exception) {
-
             Log.w(
                 TAG,
-                "Could not signal EOS",
+                "EOS signal failed",
                 e
             )
         }
 
         try {
-
-            recordingThread?.join(3000)
-
+            recordingThread?.join(4000)
         } catch (e: InterruptedException) {
-
             Thread.currentThread().interrupt()
         }
 
-        cleanup()
+        cleanup(true)
 
         stopSelf()
     }
 
-    private fun cleanup() {
+    private fun cleanup(
+        successful: Boolean
+    ) {
 
-        isRecording = false
-        stopRequested = false
+        isCurrentlyRecording = false
 
         try {
             virtualDisplay?.release()
@@ -516,11 +468,11 @@ class ScreenRecordService : Service() {
         mediaProjection = null
 
         try {
-            encoderInputSurface?.release()
+            inputSurface?.release()
         } catch (_: Exception) {
         }
 
-        encoderInputSurface = null
+        inputSurface = null
 
         try {
             encoder?.stop()
@@ -535,11 +487,9 @@ class ScreenRecordService : Service() {
         encoder = null
 
         try {
-
             if (muxerStarted) {
                 muxer?.stop()
             }
-
         } catch (_: Exception) {
         }
 
@@ -554,10 +504,157 @@ class ScreenRecordService : Service() {
 
         recordingThread = null
 
-        Log.d(
-            TAG,
-            "Recording resources released"
-        )
+        if (successful) {
+            finalizeMediaStoreFile()
+        } else {
+            deleteFailedMedia()
+        }
+
+        sendState(false)
+
+        outputUri = null
+        outputStreamFile = null
+    }
+
+    private fun createMediaStoreOutput(): Pair<Uri, File> {
+
+        val resolver = contentResolver
+
+        val name =
+            "StellarVideoR_${
+                System.currentTimeMillis()
+            }.mp4"
+
+        val values =
+            ContentValues().apply {
+
+                put(
+                    MediaStore.Video.Media.DISPLAY_NAME,
+                    name
+                )
+
+                put(
+                    MediaStore.Video.Media.MIME_TYPE,
+                    "video/mp4"
+                )
+
+                put(
+                    MediaStore.Video.Media.TITLE,
+                    "Stellar VideoR"
+                )
+
+                if (Build.VERSION.SDK_INT >= 29) {
+
+                    put(
+                        MediaStore.Video.Media.RELATIVE_PATH,
+                        Environment.DIRECTORY_DCIM +
+                                "/Screen Recordings"
+                    )
+
+                    put(
+                        MediaStore.Video.Media.IS_PENDING,
+                        1
+                    )
+                }
+            }
+
+        val uri =
+            resolver.insert(
+                MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+                values
+            )
+                ?: throw IllegalStateException(
+                    "MediaStore insert failed"
+                )
+
+        val temporaryFile =
+            File(
+                cacheDir,
+                "recording_${System.currentTimeMillis()}.mp4"
+            )
+
+        return uri to temporaryFile
+    }
+
+    private fun finalizeMediaStoreFile() {
+
+        val uri = outputUri ?: return
+        val temp = outputStreamFile ?: return
+
+        try {
+
+            contentResolver.openOutputStream(
+                uri
+            )?.use { output ->
+
+                temp.inputStream().use { input ->
+
+                    input.copyTo(output)
+                }
+            }
+
+            if (Build.VERSION.SDK_INT >= 29) {
+
+                val values =
+                    ContentValues().apply {
+
+                        put(
+                            MediaStore.Video.Media.IS_PENDING,
+                            0
+                        )
+                    }
+
+                contentResolver.update(
+                    uri,
+                    values,
+                    null,
+                    null
+                )
+            }
+
+            temp.delete()
+
+            Log.d(
+                TAG,
+                "Saved to DCIM/Screen Recordings"
+            )
+
+        } catch (e: Exception) {
+
+            Log.e(
+                TAG,
+                "Could not finalize video",
+                e
+            )
+
+            try {
+                contentResolver.delete(
+                    uri,
+                    null,
+                    null
+                )
+            } catch (_: Exception) {
+            }
+
+            temp.delete()
+        }
+    }
+
+    private fun deleteFailedMedia() {
+
+        outputStreamFile?.delete()
+
+        outputUri?.let {
+
+            try {
+                contentResolver.delete(
+                    it,
+                    null,
+                    null
+                )
+            } catch (_: Exception) {
+            }
+        }
     }
 
     private fun findEncoder(
@@ -566,82 +663,56 @@ class ScreenRecordService : Service() {
         fps: Int
     ): MediaCodecInfo? {
 
-        val codecList =
+        val list =
             MediaCodecList(
                 MediaCodecList.REGULAR_CODECS
             )
 
-        for (info in codecList.codecInfos) {
+        for (info in list.codecInfos) {
 
-            if (!info.isEncoder) {
-                continue
-            }
+            if (!info.isEncoder) continue
 
             if (
                 !info.supportedTypes.any {
                     it.equals(
                         MIME_TYPE,
-                        ignoreCase = true
+                        true
                     )
                 }
-            ) {
-                continue
-            }
+            ) continue
 
             try {
 
-                val capabilities =
+                val caps =
                     info.getCapabilitiesForType(
                         MIME_TYPE
                     )
 
-                val videoCapabilities =
-                    capabilities.videoCapabilities
+                val video =
+                    caps.videoCapabilities
                         ?: continue
 
                 if (
-                    !videoCapabilities.isSizeSupported(
+                    !video.isSizeSupported(
                         width,
                         height
                     )
-                ) {
-                    Log.d(
-                        TAG,
-                        "${info.name}: size unsupported"
+                ) continue
+
+                val rates =
+                    video.getSupportedFrameRatesFor(
+                        width,
+                        height
                     )
-
-                    continue
-                }
-
-                val frameRates =
-                    videoCapabilities
-                        .getSupportedFrameRatesFor(
-                            width,
-                            height
-                        )
 
                 if (
-                    frameRates.upper <
+                    rates.upper <
                     fps.toDouble()
-                ) {
-
-                    Log.d(
-                        TAG,
-                        "${info.name}: FPS unsupported"
-                    )
-
-                    continue
-                }
+                ) continue
 
                 return info
 
-            } catch (e: Exception) {
-
-                Log.w(
-                    TAG,
-                    "Capability check failed for ${info.name}",
-                    e
-                )
+            } catch (_: Exception) {
             }
         }
 
@@ -658,115 +729,89 @@ class ScreenRecordService : Service() {
 
             width >= 3000 &&
                     height >= 1400 &&
-                    fps >= 120 -> 50_000_000
+                    fps >= 120 ->
+                50_000_000
 
             width >= 3000 &&
-                    height >= 1400 -> 35_000_000
+                    height >= 1400 ->
+                35_000_000
 
             width >= 2000 &&
-                    fps >= 120 -> 35_000_000
+                    fps >= 120 ->
+                35_000_000
 
-            width >= 2000 -> 25_000_000
+            width >= 2000 ->
+                25_000_000
 
-            fps >= 60 -> 16_000_000
+            fps >= 60 ->
+                16_000_000
 
-            else -> 10_000_000
+            else ->
+                10_000_000
         }
     }
 
-    private fun createOutputFile(): File {
+    private fun sendState(
+        recording: Boolean
+    ) {
 
-        val movies =
-            getExternalFilesDir(
-                android.os.Environment.DIRECTORY_MOVIES
-            )
+        sendBroadcast(
+            Intent(ACTION_STATE_CHANGED).apply {
 
-        val directory =
-            File(
-                movies,
-                "Stellar VideoR"
-            )
+                setPackage(packageName)
 
-        if (!directory.exists()) {
-            directory.mkdirs()
-        }
-
-        val timestamp =
-            System.currentTimeMillis()
-
-        return File(
-            directory,
-            "StellarVideoR_$timestamp.mp4"
+                putExtra(
+                    EXTRA_RECORDING,
+                    recording
+                )
+            }
         )
     }
 
     private fun createNotificationChannel() {
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-
-            val channel =
-                NotificationChannel(
-                    CHANNEL_ID,
-                    "Ekran Kaydı",
-                    NotificationManager.IMPORTANCE_LOW
-                )
-
-            channel.description =
-                "Stellar VideoR ekran kayıt bildirimi"
-
-            val manager =
-                getSystemService(
-                    NotificationManager::class.java
-                )
-
-            manager.createNotificationChannel(
-                channel
+        val manager =
+            getSystemService(
+                NotificationManager::class.java
             )
-        }
+
+        manager.createNotificationChannel(
+            NotificationChannel(
+                CHANNEL_ID,
+                "Ekran Kaydı",
+                NotificationManager.IMPORTANCE_LOW
+            )
+        )
     }
 
-    private fun createNotification(): Notification {
+    private fun createNotification(
+        width: Int,
+        height: Int,
+        fps: Int
+    ): Notification {
 
-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-
-            Notification.Builder(
-                this,
-                CHANNEL_ID
+        return Notification.Builder(
+            this,
+            CHANNEL_ID
+        )
+            .setSmallIcon(
+                R.drawable.ic_videor
             )
-                .setContentTitle(
-                    "Ekran kaydediliyor"
-                )
-                .setContentText(
-                    "Stellar VideoR aktif"
-                )
-                .setSmallIcon(
-                    android.R.drawable.ic_btn_speak_now
-                )
-                .setOngoing(true)
-                .build()
-
-        } else {
-
-            @Suppress("DEPRECATION")
-            Notification.Builder(this)
-                .setContentTitle(
-                    "Ekran kaydediliyor"
-                )
-                .setContentText(
-                    "Stellar VideoR aktif"
-                )
-                .setSmallIcon(
-                    android.R.drawable.ic_btn_speak_now
-                )
-                .setOngoing(true)
-                .build()
-        }
+            .setContentTitle(
+                "Ekran kaydediliyor"
+            )
+            .setContentText(
+                "${width}×${height} • ${fps} FPS"
+            )
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .build()
     }
 
     override fun onDestroy() {
 
-        if (isRecording) {
-            cleanup()
+        if (isCurrentlyRecording) {
+            cleanup(false)
         }
 
         super.onDestroy()
@@ -774,7 +819,5 @@ class ScreenRecordService : Service() {
 
     override fun onBind(
         intent: Intent?
-    ): IBinder? {
-        return null
-    }
+    ): IBinder? = null
 }
