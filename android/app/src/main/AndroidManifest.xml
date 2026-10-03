@@ -46,6 +46,10 @@
             android:exported="false"
             android:theme="@style/Theme.StellarVideoR.Countdown" />
 
+        <receiver
+            android:name=".QuickSettingsStateReceiver"
+            android:exported="false" />
+
         <service
             android:name=".ScreenRecordService"
             android:exported="false"
