@@ -3,7 +3,7 @@ package com.nevruz.videor
 import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
-import android.media.MediaProjection
+import android.media.projection.MediaProjection
 import android.media.projection.AudioPlaybackCaptureConfiguration
 import android.os.Build
 
