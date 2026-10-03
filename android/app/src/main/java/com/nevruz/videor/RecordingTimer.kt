@@ -1,67 +1,47 @@
 package com.nevruz.videor
 
-import android.content.Context
-import android.content.Intent
+class RecordingTimer {
 
-object RecordingController {
+    private var startedAt = 0L
 
-    fun start(
-        context: Context,
-        resultCode: Int,
-        data: Intent,
-        width: Int,
-        height: Int,
-        fps: Int
-    ) {
-        val intent =
-            Intent(
-                context,
-                ScreenRecordService::class.java
-            ).apply {
-
-                action =
-                    ScreenRecordService.ACTION_START
-
-                putExtra(
-                    ScreenRecordService.EXTRA_RESULT_CODE,
-                    resultCode
-                )
-
-                putExtra(
-                    ScreenRecordService.EXTRA_DATA,
-                    data
-                )
-
-                putExtra(
-                    ScreenRecordService.EXTRA_WIDTH,
-                    width
-                )
-
-                putExtra(
-                    ScreenRecordService.EXTRA_HEIGHT,
-                    height
-                )
-
-                putExtra(
-                    ScreenRecordService.EXTRA_FPS,
-                    fps
-                )
-            }
-
-        context.startForegroundService(intent)
+    fun start() {
+        startedAt =
+            System.currentTimeMillis()
     }
 
-    fun stop(context: Context) {
+    fun reset() {
+        startedAt = 0L
+    }
 
-        val intent =
-            Intent(
-                context,
-                ScreenRecordService::class.java
-            ).apply {
-                action =
-                    ScreenRecordService.ACTION_STOP
-            }
+    fun elapsed(): Long {
 
-        context.startService(intent)
+        if (startedAt == 0L) {
+            return 0L
+        }
+
+        return System.currentTimeMillis() -
+                startedAt
+    }
+
+    fun formatted(): String {
+
+        val total =
+            elapsed() / 1000L
+
+        val hours =
+            total / 3600
+
+        val minutes =
+            (total % 3600) / 60
+
+        val seconds =
+            total % 60
+
+        return String.format(
+            "%02d:%02d:%02d",
+            hours,
+            minutes,
+            seconds
+        )
     }
 }
