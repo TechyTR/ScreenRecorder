@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <string name="app_name">Ekran Kaydedici</string>
+    <string name="brand_name">Stellar VideoR</string>
+
+    <string name="record_start">KAYIT BAŞLAT</string>
+    <string name="record_stop">KAYDI DURDUR</string>
+
+    <string name="record_ready">Hazır</string>
+    <string name="record_permission_denied">Kayıt izni verilmedi</string>
+
+    <string name="recording_notification_title">Ekran kaydediliyor</string>
+    <string name="recording_notification_text">Stellar VideoR aktif</string>
+
+    <string name="record_quality">Kayıt kalitesi</string>
+
+    <string name="fhd_title">FHD+</string>
+    <string name="fhd_description">2340 × 1080 • 60 FPS</string>
+
+    <string name="qhd_title">QHD+</string>
+    <string name="qhd_description">3120 × 1440 • 60 FPS</string>
+
+    <string name="qhd120_title">QHD+ 120</string>
+    <string name="qhd120_description">3120 × 1440 • 120 FPS</string>
+
+    <string name="experimental">Deneysel • Cihaz desteğine bağlı</string>
+    <string name="selected">SEÇİLDİ</string>
+
+</resources>
