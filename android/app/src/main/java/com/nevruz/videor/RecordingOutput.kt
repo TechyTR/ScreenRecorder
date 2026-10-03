@@ -20,15 +20,12 @@ object RecordingOutput {
                 Locale.US
             ).format(Date())
 
-        val fileName =
-            "Screen_Record_$timestamp.mp4"
-
         val values =
             ContentValues().apply {
 
                 put(
                     MediaStore.Video.Media.DISPLAY_NAME,
-                    fileName
+                    "Screen_Record_$timestamp.mp4"
                 )
 
                 put(
@@ -57,21 +54,37 @@ object RecordingOutput {
                     "Kayıt dosyası oluşturulamadı."
                 )
 
-        val descriptor =
-            context.contentResolver.openFileDescriptor(
-                uri,
-                "rw"
-            )
-                ?: error(
-                    "Dosya açılamadı."
-                )
+        return try {
 
-        return Output(
-            uri = uri,
-            fileDescriptor =
-                descriptor.fileDescriptor,
-            descriptor = descriptor
-        )
+            val descriptor =
+                context.contentResolver
+                    .openFileDescriptor(
+                        uri,
+                        "rw"
+                    )
+                    ?: error(
+                        "Kayıt dosyası açılamadı."
+                    )
+
+            Output(
+                uri = uri,
+                fileDescriptor =
+                    descriptor.fileDescriptor,
+                descriptor = descriptor
+            )
+
+        } catch (error: Throwable) {
+
+            runCatching {
+                context.contentResolver.delete(
+                    uri,
+                    null,
+                    null
+                )
+            }
+
+            throw error
+        }
     }
 
     fun finish(
@@ -79,7 +92,9 @@ object RecordingOutput {
         output: Output
     ) {
 
-        output.descriptor.close()
+        runCatching {
+            output.descriptor.close()
+        }
 
         val values =
             ContentValues().apply {
@@ -117,7 +132,8 @@ object RecordingOutput {
 
     data class Output(
         val uri: android.net.Uri,
-        val fileDescriptor: java.io.FileDescriptor,
+        val fileDescriptor:
+            java.io.FileDescriptor,
         val descriptor:
             android.os.ParcelFileDescriptor
     )
