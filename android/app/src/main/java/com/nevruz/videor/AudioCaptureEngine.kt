@@ -4,7 +4,7 @@ import android.content.Context
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.projection.MediaProjection
-import android.media.projection.AudioPlaybackCaptureConfiguration
+import android.media.AudioPlaybackCaptureConfiguration
 import android.os.Build
 
 class AudioCaptureEngine(
