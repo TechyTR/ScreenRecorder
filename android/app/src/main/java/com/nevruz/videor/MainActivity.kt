@@ -2,69 +2,40 @@ package com.nevruz.videor
 
 import android.Manifest
 import android.app.Activity
+import android.app.StatusBarManager
+import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.drawable.Icon
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
+import android.widget.Toast
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
-import com.google.android.material.card.MaterialCardView
 
 class MainActivity : Activity() {
 
     companion object {
-
-        const val ACTION_START_FROM_PANEL =
-            "com.nevruz.videor.action.START_FROM_PANEL"
-
         private const val REQUEST_MEDIA_PROJECTION = 1001
         private const val REQUEST_COUNTDOWN = 1002
         private const val REQUEST_MICROPHONE = 1003
     }
 
-    private lateinit var projectionManager:
-            MediaProjectionManager
-
-    private lateinit var statusText:
-            TextView
-
-    private lateinit var recordButton:
-            Button
-
-    private lateinit var cardFhd60:
-            MaterialCardView
-
-    private lateinit var cardQhd60:
-            MaterialCardView
-
-    private lateinit var cardQhd120:
-            MaterialCardView
-
-    private lateinit var fhdSelectedText:
-            TextView
-
-    private lateinit var qhd60SelectedText:
-            TextView
-
-    private lateinit var qhd120SelectedText:
-            TextView
-
-    private var selectedWidth = 2340
-    private var selectedHeight = 1080
-    private var selectedFps = 60
-
-    private var startFromPanel = false
+    private lateinit var projectionManager: MediaProjectionManager
+    private lateinit var statusText: TextView
+    private lateinit var recordButton: Button
+    private lateinit var addTileButton: Button
+    private lateinit var settingsButton: Button
 
     override fun onCreate(
         savedInstanceState: Bundle?
     ) {
         super.onCreate(savedInstanceState)
 
-        setContentView(
-            R.layout.activity_main
-        )
+        setContentView(R.layout.activity_main)
 
         projectionManager =
             getSystemService(
@@ -77,103 +48,66 @@ class MainActivity : Activity() {
         recordButton =
             findViewById(R.id.recordButton)
 
-        cardFhd60 =
-            findViewById(R.id.cardFhd60)
+        addTileButton =
+            findViewById(R.id.addTileButton)
 
-        cardQhd60 =
-            findViewById(R.id.cardQhd60)
-
-        cardQhd120 =
-            findViewById(R.id.cardQhd120)
-
-        fhdSelectedText =
-            findViewById(R.id.fhdSelectedText)
-
-        qhd60SelectedText =
-            findViewById(R.id.qhd60SelectedText)
-
-        qhd120SelectedText =
-            findViewById(R.id.qhd120SelectedText)
-
-        cardFhd60.setOnClickListener {
-            selectProfile(
-                2340,
-                1080,
-                60
-            )
-        }
-
-        cardQhd60.setOnClickListener {
-            selectProfile(
-                3120,
-                1440,
-                60
-            )
-        }
-
-        cardQhd120.setOnClickListener {
-            selectProfile(
-                3120,
-                1440,
-                120
-            )
-        }
+        settingsButton =
+            findViewById(R.id.settingsButton)
 
         recordButton.setOnClickListener {
             beginRecordingFlow()
         }
 
-        if (
-            intent?.action ==
-            ACTION_START_FROM_PANEL
-        ) {
-
-            startFromPanel = true
-
-            val settings =
-                RecordingPreferences.load(this)
-
-            selectedWidth =
-                settings.width
-
-            selectedHeight =
-                settings.height
-
-            selectedFps =
-                settings.fps
-
-            updateSelectionUI()
-
-            startCountdown()
-
-        } else {
-            updateSelectionUI()
+        addTileButton.setOnClickListener {
+            requestAddQuickSettingsTile()
         }
+
+        settingsButton.setOnClickListener {
+            startActivity(
+                Intent(
+                    this,
+                    ControlPanelActivity::class.java
+                )
+            )
+        }
+
+        updateStatus()
     }
 
-    private fun selectProfile(
-        width: Int,
-        height: Int,
-        fps: Int
-    ) {
+    private fun updateStatus() {
 
-        selectedWidth = width
-        selectedHeight = height
-        selectedFps = fps
+        statusText.text =
+            if (
+                ScreenRecordService
+                    .isCurrentlyRecording
+            ) {
+                "Kayıt devam ediyor"
+            } else {
+                "Hazır"
+            }
 
-        val old =
-            RecordingPreferences.load(this)
+        recordButton.text =
+            if (
+                ScreenRecordService
+                    .isCurrentlyRecording
+            ) {
+                "KAYDI DURDUR"
+            } else {
+                "KAYDI BAŞLAT"
+            }
 
-        RecordingPreferences.save(
-            this,
-            old.copy(
-                width = width,
-                height = height,
-                fps = fps
-            )
-        )
+        recordButton.setOnClickListener {
 
-        updateSelectionUI()
+            if (
+                ScreenRecordService
+                    .isCurrentlyRecording
+            ) {
+                RecordingController.stop(this)
+                updateStatus()
+            } else {
+                beginRecordingFlow()
+            }
+        }
     }
 
     private fun beginRecordingFlow() {
@@ -192,8 +126,7 @@ class MainActivity : Activity() {
                 ContextCompat.checkSelfPermission(
                     this,
                     Manifest.permission.RECORD_AUDIO
-                ) !=
-                PackageManager.PERMISSION_GRANTED
+                ) != PackageManager.PERMISSION_GRANTED
             ) {
 
                 ActivityCompat.requestPermissions(
@@ -234,6 +167,77 @@ class MainActivity : Activity() {
         )
     }
 
+    private fun requestAddQuickSettingsTile() {
+
+        if (Build.VERSION.SDK_INT < 33) {
+
+            Toast.makeText(
+                this,
+                "Bu özellik Android 13 ve üzeri için kullanılabilir.",
+                Toast.LENGTH_LONG
+            ).show()
+
+            return
+        }
+
+        val statusBarManager =
+            getSystemService(
+                StatusBarManager::class.java
+            )
+
+        val componentName =
+            ComponentName(
+                this,
+                RecordingTileService::class.java
+            )
+
+        val icon =
+            Icon.createWithResource(
+                this,
+                R.drawable.ic_screen_record
+            )
+
+        statusBarManager.requestAddTileService(
+            componentName,
+            "Ekran Kaydı",
+            icon,
+            mainExecutor
+        ) { result ->
+
+            when (result) {
+
+                StatusBarManager
+                    .TILE_ADD_REQUEST_RESULT_TILE_ADDED -> {
+
+                    Toast.makeText(
+                        this,
+                        "Ekran Kaydı kontrol paneline eklendi.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                StatusBarManager
+                    .TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> {
+
+                    Toast.makeText(
+                        this,
+                        "Ekran Kaydı zaten kontrol panelinde.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                else -> {
+
+                    Toast.makeText(
+                        this,
+                        "Kontrol paneline ekleme tamamlanmadı.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
@@ -267,6 +271,7 @@ class MainActivity : Activity() {
         }
     }
 
+    @Deprecated("Deprecated in Android API")
     override fun onActivityResult(
         requestCode: Int,
         resultCode: Int,
@@ -330,81 +335,9 @@ class MainActivity : Activity() {
         recordButton.text =
             "KAYDI DURDUR"
 
-        setProfileCardsEnabled(false)
-
         recordButton.setOnClickListener {
-            stopRecording()
+            RecordingController.stop(this)
+            updateStatus()
         }
-
-        startFromPanel = false
-    }
-
-    private fun stopRecording() {
-
-        RecordingController.stop(this)
-
-        statusText.text =
-            "Hazır"
-
-        recordButton.text =
-            "KAYIT BAŞLAT"
-
-        setProfileCardsEnabled(true)
-
-        recordButton.setOnClickListener {
-            beginRecordingFlow()
-        }
-    }
-
-    private fun updateSelectionUI() {
-
-        fhdSelectedText.visibility =
-            if (
-                selectedWidth == 2340 &&
-                selectedHeight == 1080 &&
-                selectedFps == 60
-            ) {
-                android.view.View.VISIBLE
-            } else {
-                android.view.View.GONE
-            }
-
-        qhd60SelectedText.visibility =
-            if (
-                selectedWidth == 3120 &&
-                selectedHeight == 1440 &&
-                selectedFps == 60
-            ) {
-                android.view.View.VISIBLE
-            } else {
-                android.view.View.GONE
-            }
-
-        qhd120SelectedText.visibility =
-            if (
-                selectedWidth == 3120 &&
-                selectedHeight == 1440 &&
-                selectedFps == 120
-            ) {
-                android.view.View.VISIBLE
-            } else {
-                android.view.View.GONE
-            }
-    }
-
-    private fun setProfileCardsEnabled(
-        enabled: Boolean
-    ) {
-
-        cardFhd60.isEnabled = enabled
-        cardQhd60.isEnabled = enabled
-        cardQhd120.isEnabled = enabled
-
-        val alpha =
-            if (enabled) 1f else 0.5f
-
-        cardFhd60.alpha = alpha
-        cardQhd60.alpha = alpha
-        cardQhd120.alpha = alpha
     }
 }
