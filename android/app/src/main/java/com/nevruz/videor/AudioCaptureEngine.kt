@@ -1,174 +1,80 @@
 package com.nevruz.videor
 
 import android.content.Context
+import android.media.AudioAttributes
 import android.media.AudioFormat
-import android.media.AudioRecord
-import android.media.projection.MediaProjection
 import android.media.AudioPlaybackCaptureConfiguration
-import android.os.Build
+import android.media.AudioRecord
+import android.media.MediaRecorder
+import android.media.projection.MediaProjection
 
 class AudioCaptureEngine(
     private val context: Context,
-    private val mode: AudioMode,
-    private val projection: MediaProjection?
+    private val mediaProjection: MediaProjection
 ) {
 
-    companion object {
-        const val SAMPLE_RATE = 48000
-        const val CHANNEL_COUNT = 2
+    private var audioRecord: AudioRecord? = null
 
-        private const val CHANNEL_MASK =
-            AudioFormat.CHANNEL_IN_STEREO
+    fun start(): AudioRecord? {
+        return try {
+            val config =
+                AudioPlaybackCaptureConfiguration.Builder(mediaProjection)
+                    .addMatchingUsage(
+                        AudioAttributes.USAGE_MEDIA
+                    )
+                    .addMatchingUsage(
+                        AudioAttributes.USAGE_GAME
+                    )
+                    .build()
 
-        private const val ENCODING =
-            AudioFormat.ENCODING_PCM_16BIT
-    }
+            val audioFormat =
+                AudioFormat.Builder()
+                    .setEncoding(
+                        AudioFormat.ENCODING_PCM_16BIT
+                    )
+                    .setSampleRate(44100)
+                    .setChannelMask(
+                        AudioFormat.CHANNEL_IN_STEREO
+                    )
+                    .build()
 
-    private var playbackRecord: AudioRecord? = null
-    private var microphoneRecord: AudioRecord? = null
+            val bufferSize =
+                AudioRecord.getMinBufferSize(
+                    44100,
+                    AudioFormat.CHANNEL_IN_STEREO,
+                    AudioFormat.ENCODING_PCM_16BIT
+                ).coerceAtLeast(8192)
 
-    private var running = false
+            val record =
+                AudioRecord.Builder()
+                    .setAudioFormat(audioFormat)
+                    .setBufferSizeInBytes(bufferSize)
+                    .setAudioPlaybackCaptureConfig(config)
+                    .build()
 
-    fun start() {
+            audioRecord = record
 
-        if (mode == AudioMode.OFF) {
-            return
+            record.startRecording()
+
+            record
+        } catch (e: Exception) {
+            audioRecord?.release()
+            audioRecord = null
+            null
         }
-
-        if (mode == AudioMode.MEDIA ||
-            mode == AudioMode.MICROPHONE_AND_MEDIA
-        ) {
-            createPlaybackRecorder()
-        }
-
-        if (mode == AudioMode.MICROPHONE ||
-            mode == AudioMode.MICROPHONE_AND_MEDIA
-        ) {
-            createMicrophoneRecorder()
-        }
-
-        running = true
-
-        playbackRecord?.startRecording()
-        microphoneRecord?.startRecording()
-    }
-
-    private fun createPlaybackRecorder() {
-
-        if (Build.VERSION.SDK_INT < 29) {
-            return
-        }
-
-        val mediaProjection =
-            projection ?: return
-
-        val config =
-            AudioPlaybackCaptureConfiguration
-                .Builder(mediaProjection)
-                .addMatchingUsage(
-                    android.media.AudioAttributes
-                        .USAGE_MEDIA
-                )
-                .addMatchingUsage(
-                    android.media.AudioAttributes
-                        .USAGE_GAME
-                )
-                .build()
-
-        val minBuffer =
-            AudioRecord.getMinBufferSize(
-                SAMPLE_RATE,
-                CHANNEL_MASK,
-                ENCODING
-            )
-
-        playbackRecord =
-            AudioRecord.Builder()
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(ENCODING)
-                        .setSampleRate(SAMPLE_RATE)
-                        .setChannelMask(CHANNEL_MASK)
-                        .build()
-                )
-                .setBufferSizeInBytes(
-                    minBuffer * 2
-                )
-                .setAudioPlaybackCaptureConfig(
-                    config
-                )
-                .build()
-    }
-
-    private fun createMicrophoneRecorder() {
-
-        val minBuffer =
-            AudioRecord.getMinBufferSize(
-                SAMPLE_RATE,
-                CHANNEL_MASK,
-                ENCODING
-            )
-
-        microphoneRecord =
-            AudioRecord.Builder()
-                .setAudioSource(
-                    android.media.MediaRecorder
-                        .AudioSource
-                        .MIC
-                )
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(ENCODING)
-                        .setSampleRate(SAMPLE_RATE)
-                        .setChannelMask(CHANNEL_MASK)
-                        .build()
-                )
-                .setBufferSizeInBytes(
-                    minBuffer * 2
-                )
-                .build()
-    }
-
-    fun readPlayback(
-        buffer: ShortArray
-    ): Int {
-
-        return playbackRecord?.read(
-            buffer,
-            0,
-            buffer.size
-        ) ?: 0
-    }
-
-    fun readMicrophone(
-        buffer: ShortArray
-    ): Int {
-
-        return microphoneRecord?.read(
-            buffer,
-            0,
-            buffer.size
-        ) ?: 0
     }
 
     fun stop() {
-
-        running = false
-
         try {
-            playbackRecord?.stop()
+            audioRecord?.stop()
         } catch (_: Exception) {
         }
 
-        try {
-            microphoneRecord?.stop()
-        } catch (_: Exception) {
-        }
+        audioRecord?.release()
+        audioRecord = null
+    }
 
-        playbackRecord?.release()
-        microphoneRecord?.release()
-
-        playbackRecord = null
-        microphoneRecord = null
+    fun getAudioRecord(): AudioRecord? {
+        return audioRecord
     }
 }
