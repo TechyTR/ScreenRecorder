@@ -1,48 +1,75 @@
-package com.nevruz.videor
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
 
-import android.app.Activity
-import android.os.Bundle
-import android.view.Gravity
-import android.view.Window
-import android.view.WindowManager
+    <TextView
+        android:id="@+id/titleText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Ekran Kaydı"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:paddingBottom="16dp" />
 
-class ControlPanelActivity : Activity() {
+    <TextView
+        android:id="@+id/audioLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Ses"
+        android:textStyle="bold" />
 
-    override fun onCreate(
-        savedInstanceState: Bundle?
-    ) {
-        super.onCreate(savedInstanceState)
+    <Spinner
+        android:id="@+id/audioSpinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 
-        requestWindowFeature(
-            Window.FEATURE_NO_TITLE
-        )
+    <TextView
+        android:id="@+id/screenLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Ekran"
+        android:textStyle="bold"
+        android:layout_marginTop="16dp" />
 
-        setContentView(
-            R.layout.activity_control_panel
-        )
+    <Spinner
+        android:id="@+id/screenSpinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 
-        window.setGravity(
-            Gravity.CENTER
-        )
+    <TextView
+        android:id="@+id/resolutionLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Çözünürlük"
+        android:textStyle="bold"
+        android:layout_marginTop="16dp" />
 
-        window.setLayout(
-            (resources.displayMetrics.widthPixels * 0.88f)
-                .toInt(),
-            WindowManager.LayoutParams.WRAP_CONTENT
-        )
+    <Spinner
+        android:id="@+id/resolutionSpinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 
-        window.setBackgroundDrawableResource(
-            android.R.color.transparent
-        )
-    }
+    <TextView
+        android:id="@+id/fpsLabel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="FPS"
+        android:textStyle="bold"
+        android:layout_marginTop="16dp" />
 
-    override fun onResume() {
-        super.onResume()
+    <Spinner
+        android:id="@+id/fpsSpinner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
 
-        window.setLayout(
-            (resources.displayMetrics.widthPixels * 0.88f)
-                .toInt(),
-            WindowManager.LayoutParams.WRAP_CONTENT
-        )
-    }
-}
+    <Button
+        android:id="@+id/startButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Kaydı Başlat"
+        android:layout_marginTop="24dp" />
+
+</LinearLayout>
