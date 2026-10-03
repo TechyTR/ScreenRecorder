@@ -1,11 +1,15 @@
 package com.nevruz.videor
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.google.android.material.card.MaterialCardView
 
 class MainActivity : Activity() {
@@ -17,20 +21,35 @@ class MainActivity : Activity() {
 
         private const val REQUEST_MEDIA_PROJECTION = 1001
         private const val REQUEST_COUNTDOWN = 1002
+        private const val REQUEST_MICROPHONE = 1003
     }
 
-    private lateinit var projectionManager: MediaProjectionManager
+    private lateinit var projectionManager:
+            MediaProjectionManager
 
-    private lateinit var statusText: TextView
-    private lateinit var recordButton: Button
+    private lateinit var statusText:
+            TextView
 
-    private lateinit var cardFhd60: MaterialCardView
-    private lateinit var cardQhd60: MaterialCardView
-    private lateinit var cardQhd120: MaterialCardView
+    private lateinit var recordButton:
+            Button
 
-    private lateinit var fhdSelectedText: TextView
-    private lateinit var qhd60SelectedText: TextView
-    private lateinit var qhd120SelectedText: TextView
+    private lateinit var cardFhd60:
+            MaterialCardView
+
+    private lateinit var cardQhd60:
+            MaterialCardView
+
+    private lateinit var cardQhd120:
+            MaterialCardView
+
+    private lateinit var fhdSelectedText:
+            TextView
+
+    private lateinit var qhd60SelectedText:
+            TextView
+
+    private lateinit var qhd120SelectedText:
+            TextView
 
     private var selectedWidth = 2340
     private var selectedHeight = 1080
@@ -77,25 +96,38 @@ class MainActivity : Activity() {
             findViewById(R.id.qhd120SelectedText)
 
         cardFhd60.setOnClickListener {
-            selectFHD60()
+            selectProfile(
+                2340,
+                1080,
+                60
+            )
         }
 
         cardQhd60.setOnClickListener {
-            selectQHD60()
+            selectProfile(
+                3120,
+                1440,
+                60
+            )
         }
 
         cardQhd120.setOnClickListener {
-            selectQHD120()
+            selectProfile(
+                3120,
+                1440,
+                120
+            )
         }
 
         recordButton.setOnClickListener {
-            requestRecordingPermission()
+            beginRecordingFlow()
         }
 
         if (
             intent?.action ==
             ACTION_START_FROM_PANEL
         ) {
+
             startFromPanel = true
 
             val settings =
@@ -113,9 +145,70 @@ class MainActivity : Activity() {
             updateSelectionUI()
 
             startCountdown()
+
         } else {
             updateSelectionUI()
         }
+    }
+
+    private fun selectProfile(
+        width: Int,
+        height: Int,
+        fps: Int
+    ) {
+
+        selectedWidth = width
+        selectedHeight = height
+        selectedFps = fps
+
+        val old =
+            RecordingPreferences.load(this)
+
+        RecordingPreferences.save(
+            this,
+            old.copy(
+                width = width,
+                height = height,
+                fps = fps
+            )
+        )
+
+        updateSelectionUI()
+    }
+
+    private fun beginRecordingFlow() {
+
+        val settings =
+            RecordingPreferences.load(this)
+
+        if (
+            settings.audioMode ==
+            AudioMode.MICROPHONE ||
+            settings.audioMode ==
+            AudioMode.MICROPHONE_AND_MEDIA
+        ) {
+
+            if (
+                ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.RECORD_AUDIO
+                ) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(
+                        Manifest.permission.RECORD_AUDIO
+                    ),
+                    REQUEST_MICROPHONE
+                )
+
+                return
+            }
+        }
+
+        startCountdown()
     }
 
     private fun startCountdown() {
@@ -141,11 +234,45 @@ class MainActivity : Activity() {
         )
     }
 
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+
+        super.onRequestPermissionsResult(
+            requestCode,
+            permissions,
+            grantResults
+        )
+
+        if (
+            requestCode ==
+            REQUEST_MICROPHONE
+        ) {
+
+            if (
+                grantResults.isNotEmpty() &&
+                grantResults[0] ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+
+                startCountdown()
+
+            } else {
+
+                statusText.text =
+                    "Mikrofon izni verilmedi"
+            }
+        }
+    }
+
     override fun onActivityResult(
         requestCode: Int,
         resultCode: Int,
         data: Intent?
     ) {
+
         super.onActivityResult(
             requestCode,
             resultCode,
@@ -157,7 +284,10 @@ class MainActivity : Activity() {
             REQUEST_COUNTDOWN
         ) {
 
-            if (resultCode == RESULT_OK) {
+            if (
+                resultCode ==
+                RESULT_OK
+            ) {
                 requestRecordingPermission()
             }
 
@@ -222,53 +352,8 @@ class MainActivity : Activity() {
         setProfileCardsEnabled(true)
 
         recordButton.setOnClickListener {
-            requestRecordingPermission()
+            beginRecordingFlow()
         }
-    }
-
-    private fun selectFHD60() {
-
-        selectedWidth = 2340
-        selectedHeight = 1080
-        selectedFps = 60
-
-        saveCurrentProfile()
-        updateSelectionUI()
-    }
-
-    private fun selectQHD60() {
-
-        selectedWidth = 3120
-        selectedHeight = 1440
-        selectedFps = 60
-
-        saveCurrentProfile()
-        updateSelectionUI()
-    }
-
-    private fun selectQHD120() {
-
-        selectedWidth = 3120
-        selectedHeight = 1440
-        selectedFps = 120
-
-        saveCurrentProfile()
-        updateSelectionUI()
-    }
-
-    private fun saveCurrentProfile() {
-
-        val old =
-            RecordingPreferences.load(this)
-
-        RecordingPreferences.save(
-            this,
-            old.copy(
-                width = selectedWidth,
-                height = selectedHeight,
-                fps = selectedFps
-            )
-        )
     }
 
     private fun updateSelectionUI() {
@@ -315,13 +400,11 @@ class MainActivity : Activity() {
         cardQhd60.isEnabled = enabled
         cardQhd120.isEnabled = enabled
 
-        cardFhd60.alpha =
+        val alpha =
             if (enabled) 1f else 0.5f
 
-        cardQhd60.alpha =
-            if (enabled) 1f else 0.5f
-
-        cardQhd120.alpha =
-            if (enabled) 1f else 0.5f
+        cardFhd60.alpha = alpha
+        cardQhd60.alpha = alpha
+        cardQhd120.alpha = alpha
     }
 }
