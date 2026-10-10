@@ -29,14 +29,14 @@
         <item name="android:windowNoTitle">true</item>
         <item name="android:backgroundDimEnabled">false</item>
 
-        <item name="android:windowAnimationStyle">@style/WindowAnimation.StellarVideoR.Countdown</item>
+        <item name="android:windowAnimationStyle">@style/WindowAnimation_StellarVideoR_Countdown</item>
         <item name="android:windowBackground">
             @android:color/transparent
         </item>
 
     </style>
 
-    <style name="WindowAnimation.StellarVideoR.Countdown">
+    <style name="WindowAnimation_StellarVideoR_Countdown">
         <item name="android:windowEnterAnimation">@anim/countdown_enter</item>
         <item name="android:windowExitAnimation">@anim/countdown_exit</item>
     </style>
