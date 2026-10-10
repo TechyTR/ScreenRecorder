@@ -3,11 +3,13 @@ package com.nevruz.videor
 import android.Manifest
 import android.app.Activity
 import android.app.StatusBarManager
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
-import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.Bundle
 import android.widget.Button
@@ -19,16 +21,19 @@ import androidx.core.content.ContextCompat
 class MainActivity : Activity() {
 
     companion object {
-        private const val REQUEST_MEDIA_PROJECTION = 1001
-        private const val REQUEST_COUNTDOWN = 1002
         private const val REQUEST_MICROPHONE = 1003
     }
 
-    private lateinit var projectionManager: MediaProjectionManager
     private lateinit var statusText: TextView
     private lateinit var recordButton: Button
     private lateinit var addTileButton: Button
     private lateinit var settingsButton: Button
+
+    private val recordingStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            updateStatus()
+        }
+    }
 
     override fun onCreate(
         savedInstanceState: Bundle?
@@ -36,11 +41,6 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         setContentView(R.layout.activity_main)
-
-        projectionManager =
-            getSystemService(
-                MEDIA_PROJECTION_SERVICE
-            ) as MediaProjectionManager
 
         statusText =
             findViewById(R.id.statusText)
@@ -97,16 +97,10 @@ class MainActivity : Activity() {
             }
 
         recordButton.setOnClickListener {
-
-            if (
-                ScreenRecordService
-                    .isCurrentlyRecording
-            ) {
+            if (ScreenRecordService.isCurrentlyRecording) {
                 RecordingController.stop(this)
                 updateStatus()
-            } else {
-                beginRecordingFlow()
-            }
+            } else beginRecordingFlow()
         }
     }
 
@@ -141,30 +135,7 @@ class MainActivity : Activity() {
             }
         }
 
-        startCountdown()
-    }
-
-    private fun startCountdown() {
-
-        startActivityForResult(
-            Intent(
-                this,
-                CountdownActivity::class.java
-            ),
-            REQUEST_COUNTDOWN
-        )
-    }
-
-    private fun requestRecordingPermission() {
-
-        val intent =
-            projectionManager
-                .createScreenCaptureIntent()
-
-        startActivityForResult(
-            intent,
-            REQUEST_MEDIA_PROJECTION
-        )
+        startActivity(Intent(this, ProjectionPermissionActivity::class.java))
     }
 
     private fun requestAddQuickSettingsTile() {
@@ -261,7 +232,7 @@ class MainActivity : Activity() {
                 PackageManager.PERMISSION_GRANTED
             ) {
 
-                startCountdown()
+                startActivity(Intent(this, ProjectionPermissionActivity::class.java))
 
             } else {
 
@@ -271,73 +242,20 @@ class MainActivity : Activity() {
         }
     }
 
-    @Deprecated("Deprecated in Android API")
-    override fun onActivityResult(
-        requestCode: Int,
-        resultCode: Int,
-        data: Intent?
-    ) {
-
-        super.onActivityResult(
-            requestCode,
-            resultCode,
-            data
-        )
-
-        if (
-            requestCode ==
-            REQUEST_COUNTDOWN
-        ) {
-
-            if (
-                resultCode ==
-                RESULT_OK
-            ) {
-                requestRecordingPermission()
-            }
-
-            return
+    override fun onResume() {
+        super.onResume()
+        val filter = IntentFilter(ScreenRecordService.ACTION_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= 33) {
+            registerReceiver(recordingStateReceiver, filter, RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            registerReceiver(recordingStateReceiver, filter)
         }
+        updateStatus()
+    }
 
-        if (
-            requestCode !=
-            REQUEST_MEDIA_PROJECTION
-        ) {
-            return
-        }
-
-        if (
-            resultCode != RESULT_OK ||
-            data == null
-        ) {
-
-            statusText.text =
-                "Kayıt izni verilmedi"
-
-            return
-        }
-
-        val settings =
-            RecordingPreferences.load(this)
-
-        RecordingController.start(
-            context = this,
-            resultCode = resultCode,
-            data = data,
-            width = settings.width,
-            height = settings.height,
-            fps = settings.fps
-        )
-
-        statusText.text =
-            "${settings.width}×${settings.height} • ${settings.fps} FPS"
-
-        recordButton.text =
-            "KAYDI DURDUR"
-
-        recordButton.setOnClickListener {
-            RecordingController.stop(this)
-            updateStatus()
-        }
+    override fun onPause() {
+        runCatching { unregisterReceiver(recordingStateReceiver) }
+        super.onPause()
     }
 }

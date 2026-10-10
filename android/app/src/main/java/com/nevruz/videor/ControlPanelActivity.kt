@@ -1,13 +1,16 @@
 package com.nevruz.videor
 
+import android.Manifest
 import android.app.Activity
+import android.content.pm.PackageManager
 import android.content.Intent
-import android.media.projection.MediaProjectionManager
 import android.os.Bundle
 import android.widget.Button
 import android.widget.RadioButton
 import android.widget.RadioGroup
 import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class ControlPanelActivity : Activity() {
 
@@ -23,6 +26,10 @@ class ControlPanelActivity : Activity() {
     private lateinit var screenCropped: RadioButton
 
     private lateinit var startButton: Button
+
+    companion object {
+        private const val REQUEST_MICROPHONE = 1201
+    }
 
     override fun onCreate(
         savedInstanceState: Bundle?
@@ -179,18 +186,27 @@ class ControlPanelActivity : Activity() {
             )
         )
 
-        val manager =
-            getSystemService(
-                MEDIA_PROJECTION_SERVICE
-            ) as MediaProjectionManager
+        if (audioMode == AudioMode.MICROPHONE ||
+            audioMode == AudioMode.MICROPHONE_AND_MEDIA
+        ) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) !=
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.RECORD_AUDIO),
+                    REQUEST_MICROPHONE
+                )
+                return
+            }
+        }
 
-        val projectionIntent =
-            manager.createScreenCaptureIntent()
+        requestProjectionConsent()
+    }
 
-        startActivityForResult(
-            projectionIntent,
-            REQUEST_MEDIA_PROJECTION
-        )
+    private fun requestProjectionConsent() {
+        startActivity(Intent(this, ProjectionPermissionActivity::class.java))
+        finish()
     }
 
     private fun openCropSelection() {
@@ -204,60 +220,18 @@ class ControlPanelActivity : Activity() {
         startActivity(intent)
     }
 
-    @Deprecated(
-        "Deprecated in Android API"
-    )
-    override fun onActivityResult(
+    override fun onRequestPermissionsResult(
         requestCode: Int,
-        resultCode: Int,
-        data: Intent?
+        permissions: Array<out String>,
+        grantResults: IntArray
     ) {
-        super.onActivityResult(
-            requestCode,
-            resultCode,
-            data
-        )
-
-        if (
-            requestCode ==
-            REQUEST_MEDIA_PROJECTION &&
-            resultCode == RESULT_OK &&
-            data != null
-        ) {
-
-            val intent =
-                Intent(
-                    this,
-                    CountdownActivity::class.java
-                )
-
-            intent.putExtra(
-                CountdownActivity.EXTRA_RESULT_CODE,
-                resultCode
-            )
-
-            intent.putExtra(
-                CountdownActivity.EXTRA_DATA,
-                data
-            )
-
-            startActivity(intent)
-
-            finish()
-
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_MICROPHONE) return
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            requestProjectionConsent()
         } else {
-
-            Toast.makeText(
-                this,
-                "Ekran kaydı izni verilmedi.",
-                Toast.LENGTH_SHORT
-            ).show()
+            Toast.makeText(this, "Mikrofon izni verilmedi.", Toast.LENGTH_SHORT).show()
         }
     }
 
-    companion object {
-
-        const val REQUEST_MEDIA_PROJECTION =
-            1001
-    }
 }

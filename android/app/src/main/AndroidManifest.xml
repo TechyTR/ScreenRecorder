@@ -35,6 +35,12 @@
             android:exported="false" />
 
         <activity
+            android:name=".ProjectionPermissionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
+
+        <activity
             android:name=".MainActivity"
             android:exported="true">
 

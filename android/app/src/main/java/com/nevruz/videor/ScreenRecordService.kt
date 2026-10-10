@@ -14,6 +14,8 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
+import android.widget.Toast
 
 class ScreenRecordService : Service() {
 
@@ -52,6 +54,8 @@ class ScreenRecordService : Service() {
 
         private const val NOTIFICATION_ID =
             5001
+
+        private const val TAG = "ScreenRecordService"
     }
 
     private var projection:
@@ -188,8 +192,12 @@ class ScreenRecordService : Service() {
             val audioEnabled =
                 audioMode != AudioMode.OFF
 
+            val microphoneEnabled =
+                audioMode == AudioMode.MICROPHONE ||
+                    audioMode == AudioMode.MICROPHONE_AND_MEDIA
+
             startForegroundCompat(
-                audioEnabled
+                microphoneEnabled
             )
 
             val manager =
@@ -273,6 +281,14 @@ class ScreenRecordService : Service() {
             startVideoThread()
 
         } catch (error: Throwable) {
+
+            Log.e(TAG, "Could not start screen recording", error)
+
+            Toast.makeText(
+                applicationContext,
+                "Kayıt başlatılamadı: ${error.localizedMessage ?: error.javaClass.simpleName}",
+                Toast.LENGTH_LONG
+            ).show()
 
             recording = false
             isCurrentlyRecording = false
@@ -578,6 +594,9 @@ class ScreenRecordService : Service() {
             audioCapture?.stop()
         }
 
+        val hasMuxedOutput =
+            muxer?.isStarted() == true
+
         runCatching {
             muxer?.stop()
         }
@@ -588,10 +607,11 @@ class ScreenRecordService : Service() {
         if (savedOutput != null) {
 
             runCatching {
-                RecordingOutput.finish(
-                    this,
-                    savedOutput
-                )
+                if (hasMuxedOutput) {
+                    RecordingOutput.finish(this, savedOutput)
+                } else {
+                    RecordingOutput.delete(this, savedOutput)
+                }
             }
         }
 
