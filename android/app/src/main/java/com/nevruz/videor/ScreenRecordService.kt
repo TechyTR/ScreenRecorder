@@ -14,6 +14,10 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.widget.Toast
 
 class ScreenRecordService : Service() {
 
@@ -56,6 +60,17 @@ class ScreenRecordService : Service() {
 
     private var projection:
         MediaProjection? = null
+
+    private val projectionCallback =
+        object : MediaProjection.Callback() {
+            override fun onStop() {
+                if (recording) {
+                    Handler(Looper.getMainLooper()).post {
+                        stopRecording()
+                    }
+                }
+            }
+        }
 
     private var virtualDisplay:
         VirtualDisplay? = null
@@ -206,6 +221,11 @@ class ScreenRecordService : Service() {
                         "MediaProjection oluşturulamadı."
                     )
 
+            projection!!.registerCallback(
+                projectionCallback,
+                Handler(Looper.getMainLooper())
+            )
+
             output =
                 RecordingOutput.create(this)
 
@@ -273,6 +293,15 @@ class ScreenRecordService : Service() {
             startVideoThread()
 
         } catch (error: Throwable) {
+
+            Log.e("StellarVideoR", "Ekran kaydı başlatılamadı", error)
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(
+                    applicationContext,
+                    "Kayıt başlatılamadı: ${error.localizedMessage ?: "bilinmeyen hata"}",
+                    Toast.LENGTH_LONG
+                ).show()
+            }
 
             recording = false
             isCurrentlyRecording = false
@@ -563,6 +592,10 @@ class ScreenRecordService : Service() {
         }
 
         runCatching {
+            projection?.unregisterCallback(projectionCallback)
+        }
+
+        runCatching {
             projection?.stop()
         }
 
@@ -578,20 +611,28 @@ class ScreenRecordService : Service() {
             audioCapture?.stop()
         }
 
+        val savedOutput = output
+        val validVideo = muxer?.isStarted() == true &&
+            muxer?.hasWrittenVideo() == true
+
         runCatching {
             muxer?.stop()
         }
 
-        val savedOutput =
-            output
-
         if (savedOutput != null) {
-
             runCatching {
-                RecordingOutput.finish(
-                    this,
-                    savedOutput
-                )
+                if (validVideo) {
+                    RecordingOutput.finish(this, savedOutput)
+                } else {
+                    RecordingOutput.delete(this, savedOutput)
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(
+                            applicationContext,
+                            "Kayıt tamamlanamadı; geçersiz video dosyası silindi.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
             }
         }
 

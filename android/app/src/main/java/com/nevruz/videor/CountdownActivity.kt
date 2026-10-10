@@ -126,9 +126,14 @@ class CountdownActivity : Activity() {
             }
 
         if (
-            resultCode == -1 ||
+            resultCode != RESULT_OK ||
             projectionData == null
         ) {
+            android.widget.Toast.makeText(
+                this,
+                "Ekran kaydı izni alınamadı. Tekrar deneyin.",
+                android.widget.Toast.LENGTH_LONG
+            ).show()
             return
         }
 
