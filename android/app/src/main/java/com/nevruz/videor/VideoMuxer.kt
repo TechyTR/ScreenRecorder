@@ -15,6 +15,7 @@ class VideoMuxer(
 
     private var started = false
     private var stopped = false
+    private var writtenVideoSamples = 0L
 
     private val pendingVideo =
         ArrayList<EncodedVideoPacket>()
@@ -125,6 +126,11 @@ class VideoMuxer(
     }
 
     @Synchronized
+    fun hasWrittenVideo(): Boolean {
+        return writtenVideoSamples > 0L
+    }
+
+    @Synchronized
     fun stop() {
 
         if (stopped) {
@@ -201,6 +207,7 @@ class VideoMuxer(
             ByteBuffer.wrap(packet.data),
             packet.info
         )
+        writtenVideoSamples++
     }
 
     private fun writeAudioInternal(
