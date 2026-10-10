@@ -61,6 +61,9 @@ class ScreenRecordService : Service() {
     private var projection:
         MediaProjection? = null
 
+    private var projectionCallback:
+        MediaProjection.Callback? = null
+
     private var virtualDisplay:
         VirtualDisplay? = null
 
@@ -214,6 +217,19 @@ class ScreenRecordService : Service() {
                         "MediaProjection oluşturulamadı."
                     )
 
+            projectionCallback = object : MediaProjection.Callback() {
+                override fun onStop() {
+                    if (recording) {
+                        stopRecording()
+                    }
+                }
+            }
+
+            projection!!.registerCallback(
+                projectionCallback!!,
+                android.os.Handler(mainLooper)
+            )
+
             output =
                 RecordingOutput.create(this)
 
@@ -229,20 +245,13 @@ class ScreenRecordService : Service() {
                     audioEnabled
                 )
 
-            videoEncoder =
-                VideoEncoder(
-                    width,
-                    height,
-                    fps
-                )
-
-            videoEncoder!!.start()
+            videoEncoder = startVideoEncoder(width, height, fps)
 
             virtualDisplay =
                 projection!!.createVirtualDisplay(
                     "Stellar VideoR",
-                    width,
-                    height,
+                    videoEncoder!!.width,
+                    videoEncoder!!.height,
                     resources.displayMetrics.densityDpi,
                     DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
                     videoEncoder!!.inputSurface,
@@ -303,6 +312,46 @@ class ScreenRecordService : Service() {
 
             stopSelf()
         }
+    }
+
+    private fun startVideoEncoder(
+        width: Int,
+        height: Int,
+        fps: Int
+    ): VideoEncoder {
+
+        val shortSide = minOf(width, height)
+        val longSide = maxOf(width, height)
+        val fallbackLong = ((longSide.toFloat() * 720f / shortSide).toInt() and 1.inv())
+        val fallback = if (width <= height) {
+            Triple(720, fallbackLong, 30)
+        } else {
+            Triple(fallbackLong, 720, 30)
+        }
+        val candidates = linkedSetOf(
+            Triple(width, height, fps),
+            Triple(width, height, 30),
+            fallback
+        )
+
+        var lastError: Throwable? = null
+        for ((candidateWidth, candidateHeight, candidateFps) in candidates) {
+            val encoder = VideoEncoder(candidateWidth, candidateHeight, candidateFps)
+            try {
+                encoder.start()
+                return encoder
+            } catch (error: Throwable) {
+                encoder.release()
+                lastError = error
+                Log.w(
+                    TAG,
+                    "Encoder profile $candidateWidth×$candidateHeight @ $candidateFps FPS failed",
+                    error
+                )
+            }
+        }
+
+        throw lastError ?: IllegalStateException("Video encoder could not be created.")
     }
 
     private fun startVideoThread() {
@@ -577,6 +626,12 @@ class ScreenRecordService : Service() {
         runCatching {
             virtualDisplay?.release()
         }
+
+        runCatching {
+            projectionCallback?.let { projection?.unregisterCallback(it) }
+        }
+
+        projectionCallback = null
 
         runCatching {
             projection?.stop()

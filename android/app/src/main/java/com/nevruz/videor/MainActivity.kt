@@ -1,6 +1,5 @@
 package com.nevruz.videor
 
-import android.Manifest
 import android.app.Activity
 import android.app.StatusBarManager
 import android.content.BroadcastReceiver
@@ -8,20 +7,16 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.pm.PackageManager
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
 import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
-import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 
 class MainActivity : Activity() {
 
     companion object {
-        private const val REQUEST_MICROPHONE = 1003
     }
 
     private lateinit var statusText: TextView
@@ -105,37 +100,7 @@ class MainActivity : Activity() {
     }
 
     private fun beginRecordingFlow() {
-
-        val settings =
-            RecordingPreferences.load(this)
-
-        if (
-            settings.audioMode ==
-            AudioMode.MICROPHONE ||
-            settings.audioMode ==
-            AudioMode.MICROPHONE_AND_MEDIA
-        ) {
-
-            if (
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.RECORD_AUDIO
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(
-                        Manifest.permission.RECORD_AUDIO
-                    ),
-                    REQUEST_MICROPHONE
-                )
-
-                return
-            }
-        }
-
-        startActivity(Intent(this, ProjectionPermissionActivity::class.java))
+        startActivity(Intent(this, ControlPanelActivity::class.java))
     }
 
     private fun requestAddQuickSettingsTile() {
@@ -205,39 +170,6 @@ class MainActivity : Activity() {
                         Toast.LENGTH_SHORT
                     ).show()
                 }
-            }
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-
-        super.onRequestPermissionsResult(
-            requestCode,
-            permissions,
-            grantResults
-        )
-
-        if (
-            requestCode ==
-            REQUEST_MICROPHONE
-        ) {
-
-            if (
-                grantResults.isNotEmpty() &&
-                grantResults[0] ==
-                PackageManager.PERMISSION_GRANTED
-            ) {
-
-                startActivity(Intent(this, ProjectionPermissionActivity::class.java))
-
-            } else {
-
-                statusText.text =
-                    "Mikrofon izni verilmedi"
             }
         }
     }

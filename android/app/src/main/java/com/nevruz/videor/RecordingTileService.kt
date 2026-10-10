@@ -26,7 +26,7 @@ class RecordingTileService : TileService() {
         val intent =
             Intent(
                 this,
-                ProjectionPermissionActivity::class.java
+                ControlPanelActivity::class.java
             ).apply {
 
                 addFlags(

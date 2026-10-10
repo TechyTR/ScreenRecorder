@@ -24,7 +24,8 @@
 
         <activity
             android:name=".ControlPanelActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.StellarVideoR.Panel" />
 
         <activity
             android:name=".CropSelectionActivity"
@@ -32,7 +33,8 @@
 
         <activity
             android:name=".CountdownActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.StellarVideoR.Countdown" />
 
         <activity
             android:name=".ProjectionPermissionActivity"

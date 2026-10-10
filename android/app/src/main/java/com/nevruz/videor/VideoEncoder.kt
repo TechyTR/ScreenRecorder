@@ -6,8 +6,8 @@ import android.media.MediaFormat
 import android.view.Surface
 
 class VideoEncoder(
-    private val width: Int,
-    private val height: Int,
+    val width: Int,
+    val height: Int,
     private val fps: Int
 ) {
 
@@ -84,13 +84,10 @@ class VideoEncoder(
     }
 
     fun release() {
-
-        if (!started) {
-            return
-        }
-
-        runCatching {
-            codec.stop()
+        if (started) {
+            runCatching {
+                codec.stop()
+            }
         }
 
         runCatching {
