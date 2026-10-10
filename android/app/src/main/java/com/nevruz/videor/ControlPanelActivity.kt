@@ -1,263 +1,181 @@
 package com.nevruz.videor
 
+import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.media.projection.MediaProjectionManager
 import android.os.Bundle
+import android.view.Gravity
+import android.view.WindowManager
+import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.RadioButton
 import android.widget.RadioGroup
+import android.widget.Spinner
 import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class ControlPanelActivity : Activity() {
 
     private lateinit var audioGroup: RadioGroup
     private lateinit var screenGroup: RadioGroup
-
+    private lateinit var resolutionSpinner: Spinner
     private lateinit var audioOff: RadioButton
     private lateinit var audioMedia: RadioButton
-    private lateinit var audioMicrophoneMedia: RadioButton
     private lateinit var audioMicrophone: RadioButton
-
+    private lateinit var audioMicrophoneMedia: RadioButton
     private lateinit var screenFull: RadioButton
     private lateinit var screenCropped: RadioButton
-
     private lateinit var startButton: Button
 
-    override fun onCreate(
-        savedInstanceState: Bundle?
-    ) {
+    private lateinit var resolutionOptions: List<ResolutionOption>
+
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        setContentView(
-            R.layout.activity_control_panel
+        window.setGravity(Gravity.CENTER)
+        window.setLayout(
+            WindowManager.LayoutParams.WRAP_CONTENT,
+            WindowManager.LayoutParams.WRAP_CONTENT
         )
-
+        setContentView(R.layout.activity_control_panel)
         bindViews()
+        setupResolutionOptions()
         loadSettings()
-        setupListeners()
+
+        startButton.setOnClickListener { requestMicrophoneThenProjection() }
+        screenGroup.setOnCheckedChangeListener { _, checkedId ->
+            if (checkedId == R.id.screenCropped) openCropSelection()
+        }
     }
 
     private fun bindViews() {
+        audioGroup = findViewById(R.id.audioGroup)
+        screenGroup = findViewById(R.id.screenGroup)
+        resolutionSpinner = findViewById(R.id.resolutionSpinner)
+        audioOff = findViewById(R.id.audioOff)
+        audioMedia = findViewById(R.id.audioMedia)
+        audioMicrophone = findViewById(R.id.audioMicrophone)
+        audioMicrophoneMedia = findViewById(R.id.audioMicrophoneMedia)
+        screenFull = findViewById(R.id.screenFull)
+        screenCropped = findViewById(R.id.screenCropped)
+        startButton = findViewById(R.id.startButton)
+    }
 
-        audioGroup =
-            findViewById(R.id.audioGroup)
+    private fun setupResolutionOptions() {
+        val display = resources.displayMetrics
+        val shortSide = minOf(display.widthPixels, display.heightPixels)
+        val longSide = maxOf(display.widthPixels, display.heightPixels)
 
-        screenGroup =
-            findViewById(R.id.screenGroup)
+        fun profile(title: String, targetShortSide: Int, fps: Int): ResolutionOption {
+            val targetLongSide = (longSide.toFloat() * targetShortSide / shortSide).toInt() and 1.inv()
+            return if (display.widthPixels <= display.heightPixels) {
+                ResolutionOption(title, targetShortSide, targetLongSide, fps)
+            } else {
+                ResolutionOption(title, targetLongSide, targetShortSide, fps)
+            }
+        }
 
-        audioOff =
-            findViewById(R.id.audioOff)
-
-        audioMedia =
-            findViewById(R.id.audioMedia)
-
-        audioMicrophoneMedia =
-            findViewById(
-                R.id.audioMicrophoneMedia
-            )
-
-        audioMicrophone =
-            findViewById(
-                R.id.audioMicrophone
-            )
-
-        screenFull =
-            findViewById(
-                R.id.screenFull
-            )
-
-        screenCropped =
-            findViewById(
-                R.id.screenCropped
-            )
-
-        startButton =
-            findViewById(
-                R.id.startButton
-            )
+        resolutionOptions = listOf(
+            profile("FHD", 1080, 30),
+            profile("FHD", 1080, 60),
+            profile("1080p", 1080, 30),
+            profile("1080p", 1080, 60),
+            profile("1080p", 1080, 120),
+            profile("720p", 720, 60),
+            profile("720p", 720, 120),
+            profile("480p", 480, 60),
+            profile("480p", 480, 120)
+        )
+        resolutionSpinner.adapter = ArrayAdapter(
+            this,
+            android.R.layout.simple_spinner_dropdown_item,
+            resolutionOptions
+        )
     }
 
     private fun loadSettings() {
-
-        val settings =
-            RecordingPreferences.load(this)
-
+        val settings = RecordingPreferences.load(this)
         when (settings.audioMode) {
-
-            AudioMode.OFF -> {
-                audioOff.isChecked = true
-            }
-
-            AudioMode.MEDIA -> {
-                audioMedia.isChecked = true
-            }
-
-            AudioMode.MICROPHONE -> {
-                audioMicrophone.isChecked = true
-            }
-
-            AudioMode.MICROPHONE_AND_MEDIA -> {
-                audioMicrophoneMedia.isChecked =
-                    true
-            }
+            AudioMode.OFF -> audioOff.isChecked = true
+            AudioMode.MEDIA -> audioMedia.isChecked = true
+            AudioMode.MICROPHONE -> audioMicrophone.isChecked = true
+            AudioMode.MICROPHONE_AND_MEDIA -> audioMicrophoneMedia.isChecked = true
         }
+        if (settings.screenMode == ScreenMode.CROPPED) screenCropped.isChecked = true
+        else screenFull.isChecked = true
 
-        when (settings.screenMode) {
-
-            ScreenMode.FULL_SCREEN -> {
-                screenFull.isChecked = true
-            }
-
-            ScreenMode.CROPPED -> {
-                screenCropped.isChecked = true
-            }
+        val savedIndex = resolutionOptions.indexOfFirst {
+            it.width == settings.width && it.height == settings.height && it.fps == settings.fps
         }
+        resolutionSpinner.setSelection(if (savedIndex >= 0) savedIndex else 0)
     }
 
-    private fun setupListeners() {
-
-        startButton.setOnClickListener {
-            startRecording()
+    private fun requestMicrophoneThenProjection() {
+        val audioMode = selectedAudioMode()
+        if ((audioMode == AudioMode.MICROPHONE || audioMode == AudioMode.MICROPHONE_AND_MEDIA) &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED
+        ) {
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE)
+            return
         }
-
-        screenGroup.setOnCheckedChangeListener {
-                _,
-                checkedId ->
-
-            if (
-                checkedId ==
-                R.id.screenCropped
-            ) {
-                openCropSelection()
-            }
-        }
+        requestProjection()
     }
 
-    private fun startRecording() {
-
-        val current =
-            RecordingPreferences.load(this)
-
-        val audioMode =
-            when {
-
-                audioOff.isChecked ->
-                    AudioMode.OFF
-
-                audioMedia.isChecked ->
-                    AudioMode.MEDIA
-
-                audioMicrophoneMedia.isChecked ->
-                    AudioMode.MICROPHONE_AND_MEDIA
-
-                audioMicrophone.isChecked ->
-                    AudioMode.MICROPHONE
-
-                else ->
-                    AudioMode.OFF
-            }
-
-        val screenMode =
-            when {
-
-                screenFull.isChecked ->
-                    ScreenMode.FULL_SCREEN
-
-                screenCropped.isChecked ->
-                    ScreenMode.CROPPED
-
-                else ->
-                    ScreenMode.FULL_SCREEN
-            }
-
+    private fun requestProjection() {
+        val quality = resolutionSpinner.selectedItem as ResolutionOption
         RecordingPreferences.save(
             this,
-            current.copy(
-                audioMode = audioMode,
-                screenMode = screenMode
+            RecordingSettings(
+                audioMode = selectedAudioMode(),
+                screenMode = if (screenCropped.isChecked) ScreenMode.CROPPED else ScreenMode.FULL_SCREEN,
+                width = quality.width,
+                height = quality.height,
+                fps = quality.fps
             )
         )
+        val manager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        startActivityForResult(manager.createScreenCaptureIntent(), REQUEST_MEDIA_PROJECTION)
+    }
 
-        val manager =
-            getSystemService(
-                MEDIA_PROJECTION_SERVICE
-            ) as MediaProjectionManager
-
-        val projectionIntent =
-            manager.createScreenCaptureIntent()
-
-        startActivityForResult(
-            projectionIntent,
-            REQUEST_MEDIA_PROJECTION
-        )
+    private fun selectedAudioMode() = when {
+        audioMedia.isChecked -> AudioMode.MEDIA
+        audioMicrophone.isChecked -> AudioMode.MICROPHONE
+        audioMicrophoneMedia.isChecked -> AudioMode.MICROPHONE_AND_MEDIA
+        else -> AudioMode.OFF
     }
 
     private fun openCropSelection() {
-
-        val intent =
-            Intent(
-                this,
-                CropSelectionActivity::class.java
-            )
-
-        startActivity(intent)
+        startActivity(Intent(this, CropSelectionActivity::class.java))
     }
 
-    @Deprecated(
-        "Deprecated in Android API"
-    )
-    override fun onActivityResult(
-        requestCode: Int,
-        resultCode: Int,
-        data: Intent?
-    ) {
-        super.onActivityResult(
-            requestCode,
-            resultCode,
-            data
-        )
+    @Deprecated("Deprecated in Android API")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_MEDIA_PROJECTION) return
+        if (resultCode != RESULT_OK || data == null) {
+            Toast.makeText(this, "Ekran kaydı izni verilmedi.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        startActivity(Intent(this, CountdownActivity::class.java).apply {
+            putExtra(CountdownActivity.EXTRA_RESULT_CODE, resultCode)
+            putExtra(CountdownActivity.EXTRA_DATA, data)
+        })
+        finish()
+    }
 
-        if (
-            requestCode ==
-            REQUEST_MEDIA_PROJECTION &&
-            resultCode == RESULT_OK &&
-            data != null
-        ) {
-
-            val intent =
-                Intent(
-                    this,
-                    CountdownActivity::class.java
-                )
-
-            intent.putExtra(
-                CountdownActivity.EXTRA_RESULT_CODE,
-                resultCode
-            )
-
-            intent.putExtra(
-                CountdownActivity.EXTRA_DATA,
-                data
-            )
-
-            startActivity(intent)
-
-            finish()
-
-        } else {
-
-            Toast.makeText(
-                this,
-                "Ekran kaydı izni verilmedi.",
-                Toast.LENGTH_SHORT
-            ).show()
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_MICROPHONE && grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            requestProjection()
+        } else if (requestCode == REQUEST_MICROPHONE) {
+            Toast.makeText(this, "Mikrofon izni verilmedi.", Toast.LENGTH_SHORT).show()
         }
     }
 
     companion object {
-
-        const val REQUEST_MEDIA_PROJECTION =
-            1001
+        private const val REQUEST_MEDIA_PROJECTION = 1001
+        private const val REQUEST_MICROPHONE = 1002
     }
 }

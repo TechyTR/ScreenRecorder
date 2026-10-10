@@ -1,100 +1,117 @@
 <?xml version="1.0" encoding="utf-8"?>
-
-<LinearLayout
+<com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="360dp"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="24dp">
+    android:layout_gravity="center"
+    android:layout_margin="16dp"
+    app:cardBackgroundColor="@color/panel_surface"
+    app:cardCornerRadius="28dp"
+    app:cardElevation="12dp">
 
-    <TextView
+    <ScrollView
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Ekran Kaydı"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:paddingBottom="16dp" />
+        android:fillViewport="true">
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Ses"
-        android:textStyle="bold" />
-
-    <RadioGroup
-        android:id="@+id/audioGroup"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
-
-        <RadioButton
-            android:id="@+id/audioOff"
-            android:layout_width="wrap_content"
+        <LinearLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Kapalı" />
+            android:orientation="vertical"
+            android:padding="24dp">
 
-        <RadioButton
-            android:id="@+id/audioMedia"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Medya" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="STELLAR VIDEOR"
+                android:textColor="@color/panel_label"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.12" />
 
-        <RadioButton
-            android:id="@+id/audioMicrophoneMedia"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Mikrofon + Medya" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="Kayıt paneli"
+                android:textColor="@color/panel_text"
+                android:textSize="25sp"
+                android:textStyle="bold" />
 
-        <RadioButton
-            android:id="@+id/audioMicrophone"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Mikrofon" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="Başlatınca Android seçim ekranı açılır, sonra oyununa dönersin."
+                android:textColor="@color/panel_subtext"
+                android:textSize="13sp" />
 
-    </RadioGroup>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:text="SES"
+                android:textColor="@color/panel_label"
+                android:textSize="12sp"
+                android:textStyle="bold" />
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Ekran"
-        android:textStyle="bold"
-        android:layout_marginTop="16dp" />
+            <RadioGroup
+                android:id="@+id/audioGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:orientation="vertical">
 
-    <RadioGroup
-        android:id="@+id/screenGroup"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content">
+                <RadioButton android:id="@+id/audioOff" android:layout_width="wrap_content" android:layout_height="40dp" android:text="Sessiz" />
+                <RadioButton android:id="@+id/audioMedia" android:layout_width="wrap_content" android:layout_height="40dp" android:text="Medya sesi" />
+                <RadioButton android:id="@+id/audioMicrophone" android:layout_width="wrap_content" android:layout_height="40dp" android:text="Mikrofon" />
+                <RadioButton android:id="@+id/audioMicrophoneMedia" android:layout_width="wrap_content" android:layout_height="40dp" android:text="Mikrofon + medya" />
+            </RadioGroup>
 
-        <RadioButton
-            android:id="@+id/screenFull"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Tam ekran" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="EKRAN"
+                android:textColor="@color/panel_label"
+                android:textSize="12sp"
+                android:textStyle="bold" />
 
-        <RadioButton
-            android:id="@+id/screenCropped"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Kırpılmış ekran" />
+            <RadioGroup
+                android:id="@+id/screenGroup"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+                <RadioButton android:id="@+id/screenFull" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1" android:text="Tam ekran" />
+                <RadioButton android:id="@+id/screenCropped" android:layout_width="0dp" android:layout_height="44dp" android:layout_weight="1" android:text="Kırp" />
+            </RadioGroup>
 
-    </RadioGroup>
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="KALİTE"
+                android:textColor="@color/panel_label"
+                android:textSize="12sp"
+                android:textStyle="bold" />
 
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Çözünürlük / FPS"
-        android:textStyle="bold"
-        android:layout_marginTop="16dp" />
+            <Spinner
+                android:id="@+id/resolutionSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp" />
 
-    <Spinner
-        android:id="@+id/resolutionSpinner"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content" />
-
-    <Button
-        android:id="@+id/startButton"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:text="Kaydı Başlat"
-        android:layout_marginTop="24dp" />
-
-</LinearLayout>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/startButton"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="20dp"
+                android:text="Kaydı başlat"
+                android:textAllCaps="false"
+                android:textSize="16sp"
+                app:cornerRadius="16dp"
+                app:icon="@drawable/ic_screen_record"
+                app:iconGravity="textStart" />
+        </LinearLayout>
+    </ScrollView>
+</com.google.android.material.card.MaterialCardView>

@@ -20,11 +20,12 @@
         android:label="Ekran Kaydedici"
         android:icon="@drawable/ic_screen_record"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
+        android:theme="@style/Theme.StellarVideoR">
 
         <activity
             android:name=".ControlPanelActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.StellarVideoR.Panel" />
 
         <activity
             android:name=".CropSelectionActivity"
@@ -32,7 +33,14 @@
 
         <activity
             android:name=".CountdownActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.StellarVideoR.Countdown" />
+
+        <activity
+            android:name=".ProjectionPermissionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <activity
             android:name=".MainActivity"
