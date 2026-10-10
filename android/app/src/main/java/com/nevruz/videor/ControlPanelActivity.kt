@@ -67,15 +67,27 @@ class ControlPanelActivity : Activity() {
         val display = resources.displayMetrics
         val shortSide = minOf(display.widthPixels, display.heightPixels)
         val longSide = maxOf(display.widthPixels, display.heightPixels)
-        val native60 = ResolutionOption("Cihaz çözünürlüğü", display.widthPixels, display.heightPixels, 60)
-        val native30 = ResolutionOption("Cihaz çözünürlüğü", display.widthPixels, display.heightPixels, 30)
-        val scaledLong = (longSide * 720f / shortSide).toInt() and 1.inv()
-        val hd = if (display.widthPixels <= display.heightPixels) {
-            ResolutionOption("720p", 720, scaledLong, 30)
-        } else {
-            ResolutionOption("720p", scaledLong, 720, 30)
+
+        fun profile(title: String, targetShortSide: Int, fps: Int): ResolutionOption {
+            val targetLongSide = (longSide.toFloat() * targetShortSide / shortSide).toInt() and 1.inv()
+            return if (display.widthPixels <= display.heightPixels) {
+                ResolutionOption(title, targetShortSide, targetLongSide, fps)
+            } else {
+                ResolutionOption(title, targetLongSide, targetShortSide, fps)
+            }
         }
-        resolutionOptions = listOf(native60, native30, hd)
+
+        resolutionOptions = listOf(
+            profile("FHD", 1080, 30),
+            profile("FHD", 1080, 60),
+            profile("1080p", 1080, 30),
+            profile("1080p", 1080, 60),
+            profile("1080p", 1080, 120),
+            profile("720p", 720, 60),
+            profile("720p", 720, 120),
+            profile("480p", 480, 60),
+            profile("480p", 480, 120)
+        )
         resolutionSpinner.adapter = ArrayAdapter(
             this,
             android.R.layout.simple_spinner_dropdown_item,

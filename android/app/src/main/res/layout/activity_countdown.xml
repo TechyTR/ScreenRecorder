@@ -3,9 +3,8 @@
     android:id="@+id/countdownText"
     android:layout_width="112dp"
     android:layout_height="112dp"
-    android:background="@drawable/countdown_background"
     android:gravity="center"
     android:text="3"
-    android:textColor="@android:color/white"
-    android:textSize="64sp"
+    android:textColor="?attr/colorPrimary"
+    android:textSize="76sp"
     android:textStyle="bold" />

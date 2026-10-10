@@ -14,4 +14,11 @@
     <color name="stellar_text_light">#17181B</color>
     <color name="stellar_text_dark">#F2F3F5</color>
 
+    <color name="panel_surface">#FFFBFE</color>
+    <color name="panel_text">#1B1B1F</color>
+    <color name="panel_subtext">#5F5E68</color>
+    <color name="panel_label">#625B71</color>
+    <color name="panel_background">#F7F2FA</color>
+    <color name="panel_border">#CAC4D0</color>
+
 </resources>
