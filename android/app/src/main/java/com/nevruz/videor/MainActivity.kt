@@ -20,7 +20,6 @@ class MainActivity : Activity() {
 
     companion object {
         private const val REQUEST_MEDIA_PROJECTION = 1001
-        private const val REQUEST_COUNTDOWN = 1002
         private const val REQUEST_MICROPHONE = 1003
     }
 
@@ -30,211 +29,87 @@ class MainActivity : Activity() {
     private lateinit var addTileButton: Button
     private lateinit var settingsButton: Button
 
-    override fun onCreate(
-        savedInstanceState: Bundle?
-    ) {
+    override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         setContentView(R.layout.activity_main)
 
-        projectionManager =
-            getSystemService(
-                MEDIA_PROJECTION_SERVICE
-            ) as MediaProjectionManager
-
-        statusText =
-            findViewById(R.id.statusText)
-
-        recordButton =
-            findViewById(R.id.recordButton)
-
-        addTileButton =
-            findViewById(R.id.addTileButton)
-
-        settingsButton =
-            findViewById(R.id.settingsButton)
+        projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        statusText = findViewById(R.id.statusText)
+        recordButton = findViewById(R.id.recordButton)
+        addTileButton = findViewById(R.id.addTileButton)
+        settingsButton = findViewById(R.id.settingsButton)
 
         recordButton.setOnClickListener {
-            beginRecordingFlow()
-        }
-
-        addTileButton.setOnClickListener {
-            requestAddQuickSettingsTile()
-        }
-
-        settingsButton.setOnClickListener {
-            startActivity(
-                Intent(
-                    this,
-                    ControlPanelActivity::class.java
-                )
-            )
-        }
-
-        updateStatus()
-    }
-
-    private fun updateStatus() {
-
-        statusText.text =
-            if (
-                ScreenRecordService
-                    .isCurrentlyRecording
-            ) {
-                "Kayıt devam ediyor"
-            } else {
-                "Hazır"
-            }
-
-        recordButton.text =
-            if (
-                ScreenRecordService
-                    .isCurrentlyRecording
-            ) {
-                "KAYDI DURDUR"
-            } else {
-                "KAYDI BAŞLAT"
-            }
-
-        recordButton.setOnClickListener {
-
-            if (
-                ScreenRecordService
-                    .isCurrentlyRecording
-            ) {
+            if (ScreenRecordService.isCurrentlyRecording) {
                 RecordingController.stop(this)
                 updateStatus()
             } else {
                 beginRecordingFlow()
             }
         }
+
+        addTileButton.setOnClickListener { requestAddQuickSettingsTile() }
+        settingsButton.setOnClickListener {
+            startActivity(Intent(this, ControlPanelActivity::class.java))
+        }
+        updateStatus()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateStatus()
+    }
+
+    private fun updateStatus() {
+        val recording = ScreenRecordService.isCurrentlyRecording
+        statusText.text = if (recording) "Kayıt devam ediyor" else "Hazır"
+        recordButton.text = if (recording) "KAYDI DURDUR" else "KAYDI BAŞLAT"
     }
 
     private fun beginRecordingFlow() {
+        val settings = RecordingPreferences.load(this)
+        val needsMicrophone = settings.audioMode == AudioMode.MICROPHONE ||
+            settings.audioMode == AudioMode.MICROPHONE_AND_MEDIA
 
-        val settings =
-            RecordingPreferences.load(this)
-
-        if (
-            settings.audioMode ==
-            AudioMode.MICROPHONE ||
-            settings.audioMode ==
-            AudioMode.MICROPHONE_AND_MEDIA
+        if (needsMicrophone && ContextCompat.checkSelfPermission(
+                this, Manifest.permission.RECORD_AUDIO
+            ) != PackageManager.PERMISSION_GRANTED
         ) {
-
-            if (
-                ContextCompat.checkSelfPermission(
-                    this,
-                    Manifest.permission.RECORD_AUDIO
-                ) != PackageManager.PERMISSION_GRANTED
-            ) {
-
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(
-                        Manifest.permission.RECORD_AUDIO
-                    ),
-                    REQUEST_MICROPHONE
-                )
-
-                return
-            }
+            ActivityCompat.requestPermissions(
+                this, arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_MICROPHONE
+            )
+            return
         }
 
-        startCountdown()
-    }
-
-    private fun startCountdown() {
-
-        startActivityForResult(
-            Intent(
-                this,
-                CountdownActivity::class.java
-            ),
-            REQUEST_COUNTDOWN
-        )
+        requestRecordingPermission()
     }
 
     private fun requestRecordingPermission() {
-
-        val intent =
-            projectionManager
-                .createScreenCaptureIntent()
-
         startActivityForResult(
-            intent,
+            projectionManager.createScreenCaptureIntent(),
             REQUEST_MEDIA_PROJECTION
         )
     }
 
     private fun requestAddQuickSettingsTile() {
-
         if (Build.VERSION.SDK_INT < 33) {
-
-            Toast.makeText(
-                this,
-                "Bu özellik Android 13 ve üzeri için kullanılabilir.",
-                Toast.LENGTH_LONG
-            ).show()
-
+            Toast.makeText(this, "Bu özellik Android 13 ve üzeri için kullanılabilir.", Toast.LENGTH_LONG).show()
             return
         }
 
-        val statusBarManager =
-            getSystemService(
-                StatusBarManager::class.java
-            )
+        val statusBarManager = getSystemService(StatusBarManager::class.java)
+        val componentName = ComponentName(this, RecordingTileService::class.java)
+        val icon = Icon.createWithResource(this, R.drawable.ic_screen_record)
 
-        val componentName =
-            ComponentName(
-                this,
-                RecordingTileService::class.java
-            )
-
-        val icon =
-            Icon.createWithResource(
-                this,
-                R.drawable.ic_screen_record
-            )
-
-        statusBarManager.requestAddTileService(
-            componentName,
-            "Ekran Kaydı",
-            icon,
-            mainExecutor
-        ) { result ->
-
-            when (result) {
-
-                StatusBarManager
-                    .TILE_ADD_REQUEST_RESULT_TILE_ADDED -> {
-
-                    Toast.makeText(
-                        this,
-                        "Ekran Kaydı kontrol paneline eklendi.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-
-                StatusBarManager
-                    .TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED -> {
-
-                    Toast.makeText(
-                        this,
-                        "Ekran Kaydı zaten kontrol panelinde.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
-
-                else -> {
-
-                    Toast.makeText(
-                        this,
-                        "Kontrol paneline ekleme tamamlanmadı.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                }
+        statusBarManager.requestAddTileService(componentName, "Ekran Kaydı", icon, mainExecutor) { result ->
+            val message = when (result) {
+                StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ADDED ->
+                    "Ekran Kaydı kontrol paneline eklendi."
+                StatusBarManager.TILE_ADD_REQUEST_RESULT_TILE_ALREADY_ADDED ->
+                    "Ekran Kaydı zaten kontrol panelinde."
+                else -> "Kontrol paneline ekleme tamamlanmadı."
             }
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -243,101 +118,32 @@ class MainActivity : Activity() {
         permissions: Array<out String>,
         grantResults: IntArray
     ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != REQUEST_MICROPHONE) return
 
-        super.onRequestPermissionsResult(
-            requestCode,
-            permissions,
-            grantResults
-        )
-
-        if (
-            requestCode ==
-            REQUEST_MICROPHONE
-        ) {
-
-            if (
-                grantResults.isNotEmpty() &&
-                grantResults[0] ==
-                PackageManager.PERMISSION_GRANTED
-            ) {
-
-                startCountdown()
-
-            } else {
-
-                statusText.text =
-                    "Mikrofon izni verilmedi"
-            }
+        if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+            requestRecordingPermission()
+        } else {
+            statusText.text = "Mikrofon izni verilmedi"
+            Toast.makeText(this, "Mikrofon izni verilmedi.", Toast.LENGTH_SHORT).show()
         }
     }
 
     @Deprecated("Deprecated in Android API")
-    override fun onActivityResult(
-        requestCode: Int,
-        resultCode: Int,
-        data: Intent?
-    ) {
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode != REQUEST_MEDIA_PROJECTION) return
 
-        super.onActivityResult(
-            requestCode,
-            resultCode,
-            data
-        )
-
-        if (
-            requestCode ==
-            REQUEST_COUNTDOWN
-        ) {
-
-            if (
-                resultCode ==
-                RESULT_OK
-            ) {
-                requestRecordingPermission()
-            }
-
+        if (resultCode != RESULT_OK || data == null) {
+            statusText.text = "Kayıt izni verilmedi"
+            Toast.makeText(this, "Ekran kaydı izni verilmedi.", Toast.LENGTH_SHORT).show()
             return
         }
 
-        if (
-            requestCode !=
-            REQUEST_MEDIA_PROJECTION
-        ) {
-            return
+        val countdownIntent = Intent(this, CountdownActivity::class.java).apply {
+            putExtra(CountdownActivity.EXTRA_RESULT_CODE, resultCode)
+            putExtra(CountdownActivity.EXTRA_DATA, data)
         }
-
-        if (
-            resultCode != RESULT_OK ||
-            data == null
-        ) {
-
-            statusText.text =
-                "Kayıt izni verilmedi"
-
-            return
-        }
-
-        val settings =
-            RecordingPreferences.load(this)
-
-        RecordingController.start(
-            context = this,
-            resultCode = resultCode,
-            data = data,
-            width = settings.width,
-            height = settings.height,
-            fps = settings.fps
-        )
-
-        statusText.text =
-            "${settings.width}×${settings.height} • ${settings.fps} FPS"
-
-        recordButton.text =
-            "KAYDI DURDUR"
-
-        recordButton.setOnClickListener {
-            RecordingController.stop(this)
-            updateStatus()
-        }
+        startActivity(countdownIntent)
     }
 }
