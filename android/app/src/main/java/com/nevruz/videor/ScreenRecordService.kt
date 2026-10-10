@@ -611,20 +611,28 @@ class ScreenRecordService : Service() {
             audioCapture?.stop()
         }
 
+        val savedOutput = output
+        val validVideo = muxer?.isStarted() == true &&
+            muxer?.hasWrittenVideo() == true
+
         runCatching {
             muxer?.stop()
         }
 
-        val savedOutput =
-            output
-
         if (savedOutput != null) {
-
             runCatching {
-                RecordingOutput.finish(
-                    this,
-                    savedOutput
-                )
+                if (validVideo) {
+                    RecordingOutput.finish(this, savedOutput)
+                } else {
+                    RecordingOutput.delete(this, savedOutput)
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(
+                            applicationContext,
+                            "Kayıt tamamlanamadı; geçersiz video dosyası silindi.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                }
             }
         }
 
