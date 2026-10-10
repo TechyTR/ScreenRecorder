@@ -20,7 +20,7 @@
         android:label="Ekran Kaydedici"
         android:icon="@drawable/ic_screen_record"
         android:supportsRtl="true"
-        android:theme="@style/Theme.AppCompat.DayNight.NoActionBar">
+        android:theme="@style/Theme.StellarVideoR">
 
         <activity
             android:name=".ControlPanelActivity"
